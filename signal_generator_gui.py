@@ -104,6 +104,68 @@ def generate_prbs(num_samples, amplitude, seed=None, order=None, mode='lfsr'):
     return amplitude * (2 * bits - 1)
 
 
+def generate_white_noise(num_samples, amplitude, sample_rate, lowcut, highcut, fir_order):
+    """
+    Generate band-limited white Gaussian noise. Try to use scipy.signal.firwin + lfilter
+    (or filtfilt if available). If scipy is not available or filter design fails, fall back
+    to raw Gaussian noise.
+
+    lowcut, highcut in Hz. If lowcut <= 0 and highcut >= fs/2 -> return raw noise.
+    """
+    rng = np.random.default_rng()
+    x = amplitude * rng.standard_normal(num_samples)
+    fs = float(sample_rate)
+    # sanitize
+    lowf = max(0.0, float(lowcut))
+    highf = float(highcut)
+    nyq = fs / 2.0
+    if highf <= 0 or highf <= lowf:
+        return x
+    if lowf <= 0 and highf >= nyq - 1e-9:
+        return x
+    # try to design FIR via scipy
+    try:
+        from scipy.signal import firwin, lfilter, filtfilt
+        use_filtfilt = True
+    except Exception:
+        try:
+            from scipy.signal import firwin, lfilter
+            filtfilt = None
+            use_filtfilt = False
+        except Exception:
+            # scipy not available
+            return x
+
+    numtaps = max(3, int(round(fir_order)))
+    # ensure numtaps is odd for Type I linear phase
+    if numtaps % 2 == 0:
+        numtaps += 1
+
+    try:
+        if lowf <= 0:
+            # lowpass
+            cutoff = min(max(highf / nyq, 1e-6), 0.9999)
+            b = firwin(numtaps, cutoff)
+        elif highf >= nyq - 1e-9:
+            # highpass
+            cutoff = min(max(lowf / nyq, 1e-6), 0.9999)
+            b = firwin(numtaps, cutoff, pass_zero=False)
+        else:
+            # bandpass
+            wn = [max(lowf/nyq, 1e-6), min(highf/nyq, 0.9999)]
+            if wn[1] <= wn[0]:
+                return x
+            b = firwin(numtaps, wn, pass_zero=False)
+        # apply filter (use filtfilt if available to remove phase)
+        if 'filtfilt' in globals() and filtfilt is not None:
+            y = filtfilt(b, 1.0, x)
+        else:
+            y = lfilter(b, 1.0, x)
+        return y
+    except Exception:
+        return x
+
+
 def float_to_signed_twos(value, total_bits):
     mask = (1 << total_bits) - 1
     return int(value) & mask
@@ -188,7 +250,7 @@ class SignalGeneratorApp:
         ttk.Label(top, text='Signal:').pack(side='left')
         self.sig_var = tk.StringVar(value='Sine')
         self.sig_cb = ttk.Combobox(top, textvariable=self.sig_var, state='readonly', width=16,
-                                   values=['Sine', 'Square', 'PRBS'])
+                                   values=['Sine', 'Square', 'White Noise', 'PRBS'])
         self.sig_cb.pack(side='left', padx=6)
         self.sig_cb.bind('<<ComboboxSelected>>', lambda e: self.build_params())
 
@@ -307,6 +369,7 @@ class SignalGeneratorApp:
         self.col_right = ttk.Frame(self.param_frame)
         self.col_right.pack(side='left', fill='both', expand=True, padx=(12, 0))
         sig = self.sig_var.get()
+    # Add White Noise parameters similar to MATLAB GUI
         if sig == 'Sine':
             self._add_param('Amplitude', tk.DoubleVar(value=saved.get('Amplitude', 1.0)), column='left')
             self._add_param('Offset', tk.DoubleVar(value=saved.get('Offset', 0.0)), column='left')
@@ -351,6 +414,16 @@ class SignalGeneratorApp:
             else:
                 # RNG 模式仅显示可选的种子
                 self._add_param('Seed (int)', tk.IntVar(value=saved.get('Seed (int)', default_seed)), column='left')
+
+        elif sig == 'White Noise':
+            # Band-limited white Gaussian noise
+            self._add_param('Amplitude', tk.DoubleVar(value=saved.get('Amplitude', 1.0)), column='left')
+            self._add_param('Offset', tk.DoubleVar(value=saved.get('Offset', 0.0)), column='left')
+            self._add_param('Lowcut (Hz)', tk.DoubleVar(value=saved.get('Lowcut (Hz)', 0.0)), column='left')
+            # default highcut is Nyquist; user can set less
+            self._add_param('Highcut (Hz)', tk.DoubleVar(value=saved.get('Highcut (Hz)', 24000.0)), column='left')
+            # FIR order (num taps)
+            self._add_param('FIR order', tk.IntVar(value=saved.get('FIR order', 101)), column='left')
 
         # Total bits / Fractional bits 可编辑（下拉只选择 Signed/Unsigned，不包含位宽细节）
         self._add_param('Total bits', tk.IntVar(value=saved.get('Total bits', 24)), column='right')
@@ -426,6 +499,16 @@ class SignalGeneratorApp:
             vals = generate_prbs(num, amp, seed, order, mode=mode.lower())
         else:
             vals = np.zeros(num)
+
+        if sig == 'White Noise':
+            # For white noise we've already generated vals above as zeros; replace with generated noise
+            try:
+                lowcut = float(self.params.get('Lowcut (Hz)', tk.DoubleVar(value=0.0)).get()) if 'Lowcut (Hz)' in self.params else 0.0
+                highcut = float(self.params.get('Highcut (Hz)', tk.DoubleVar(value=24000.0)).get()) if 'Highcut (Hz)' in self.params else float(sr) / 2.0
+                fir_order = int(self.params.get('FIR order', tk.IntVar(value=101)).get()) if 'FIR order' in self.params else 101
+                vals = generate_white_noise(num, amp, sr, lowcut, highcut, fir_order)
+            except Exception:
+                vals = generate_white_noise(num, amp, sr, 0.0, sr/2.0, 101)
 
         # apply offset (numpy array + scalar works)
         try:

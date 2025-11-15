@@ -18,7 +18,7 @@ hFig = figure('Name','Signal Generator','NumberTitle','off', 'MenuBar','none', .
 % Top: Signal & Fixed-format selectors
 uicontrol('Parent',hFig,'Style','text','String','Signal:','Units','normalized',...
     'Position',[0.02 0.94 0.12 0.04],'HorizontalAlignment','left','FontSize',10);
-hSignal = uicontrol('Parent',hFig,'Style','popupmenu','String',{'Sine','Square','PRBS'}, ...
+hSignal = uicontrol('Parent',hFig,'Style','popupmenu','String',{'Sine','Square','White Noise','PRBS'}, ...
     'Units','normalized','Position',[0.14 0.94 0.28 0.04],'Callback',@signalChanged,'FontSize',10);
 
 uicontrol('Parent',hFig,'Style','text','String','Sign:','Units','normalized',...
@@ -141,6 +141,15 @@ function createParamControls(signalType)
             hfs = addLabelEdit(hParamPanel,'Sample Rate (Hz)','48000',0.28,'prbs_fs');
             set([hDur,hfs],'Callback',@syncTimeSamples);
             addLabelEdit(hParamPanel,'Polynom taps (comma)','[13 11]',0.16,'prbs_taps');
+        case 'white noise'
+            % Parameters: Amplitude, Duration, SampleRate, Low cutoff, High cutoff, FIR order
+            addLabelEdit(hParamPanel,'Amplitude','1',0.78);
+            hDur = addLabelEdit(hParamPanel,'Duration (s)','10',0.66,'duration');
+            hSRate = addLabelEdit(hParamPanel,'Sample Rate (Hz)','48000',0.54,'srate');
+            addLabelEdit(hParamPanel,'Low Cutoff (Hz)','20',0.42);
+            addLabelEdit(hParamPanel,'High Cutoff (Hz)','20000',0.30);
+            addLabelEdit(hParamPanel,'FIR order (even)','128',0.18);
+            set([hDur,hSRate],'Callback',@syncTimeSamples);
     end
 end
 
@@ -208,6 +217,9 @@ function createEncodeControls()
     end
     uicontrol('Parent',hEncodePanel,'Style','text','String',mapStr,'Units','normalized',...
         'Position',[0.03 0.02 0.92 0.12],'HorizontalAlignment','left','FontSize',9);
+    % Add a toggle button to enable/disable quantization overlay in preview
+    uicontrol('Parent',hEncodePanel,'Style','togglebutton','String','Quantize','Units','normalized',...
+        'Position',[0.72 0.66 0.24 0.16],'Tag','btn_quantize','FontSize',10,'Value',0, 'TooltipString','Toggle to overlay quantized waveform on preview');
 end
 
 
@@ -267,30 +279,32 @@ function generatePreview(~,~)
             else
                 set(hStatus,'String','Generated preview.');
             end
-            % --- Overlay quantized result and plot error on right axis ---
+            % --- Overlay quantized result only if user enabled the Quantize toggle ---
             try
-                % read encoding params from the two-popups and fields
-                [encType, N, frac] = getEncodingParams();
-                % encode and reconstruct quantized waveform
-                intQ = encodeSignalToIntegers(y, encType, N, frac);
-                yq = reconstructFromInts(y, double(intQ), encType, N, frac);
-                hold(hAx,'on');
-                % draw quantized waveform (use red, thinner)
-                if isfield(info,'type') && strcmpi(info.type,'PRBS')
-                    stairs(hAx, t, yq, '--r','LineWidth',1.5);
-                else
-                    plot(hAx, t, yq, '--r','LineWidth',1.5);
-                end
-                % draw quantized waveform as red dashed line
-                if isfield(info,'type') && strcmpi(info.type,'PRBS')
-                    stairs(hAx, t, yq, '--r','LineWidth',1.5);
-                else
-                    plot(hAx, t, yq, '--r','LineWidth',1.5);
-                end
-                legend(hAx,{'Original','Quantized'},'Location','best');
-                hold(hAx,'off');
+                hBtn = findobj(hEncodePanel,'Tag','btn_quantize');
+                doQuant = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
             catch
-                % don't let overlay errors break preview
+                doQuant = false;
+            end
+            if doQuant
+                try
+                    % read encoding params from the two-popups and fields
+                    [encType, N, frac] = getEncodingParams();
+                    % encode and reconstruct quantized waveform
+                    intQ = encodeSignalToIntegers(y, encType, N, frac);
+                    yq = reconstructFromInts(y, double(intQ), encType, N, frac);
+                    hold(hAx,'on');
+                    % draw quantized waveform (use red, dashed, thinner)
+                    if isfield(info,'type') && strcmpi(info.type,'PRBS')
+                        stairs(hAx, t, yq, '--r','LineWidth',1.0);
+                    else
+                        plot(hAx, t, yq, '--r','LineWidth',1.0);
+                    end
+                    legend(hAx,{'Original','Quantized'},'Location','best');
+                    hold(hAx,'off');
+                catch
+                    % don't let overlay errors break preview
+                end
             end
         % 预览后清空导入数据
         importedData.intVals = [];
@@ -1006,6 +1020,66 @@ function [y, t, info] = generateSignalFromUI()
             off = getParamValue('Offset',0);
             y = y + off;
             info.type = 'Square';
+        case 'white noise'
+            % Band-limited white noise: Amplitude, Duration, SampleRate, Low/High cutoff, FIR order
+            A = getParamValue('Amplitude', 1);
+            % sample rate may be tagged as 'srate' or 'prbs_fs'
+            hfs = findobj(hParamPanel,'Tag','srate'); if isempty(hfs), fs = 48000; else fs = str2double(get(hfs,'String')); end
+            duration = getParamValue('Duration (s)',10);
+            Ns = max(1, round(duration * fs));
+            t = (0:Ns-1)/fs;
+            % generate white Gaussian noise
+            x = A * randn(1, Ns);
+            % read band edges and filter order (use labels so getParamValue can find them)
+            lowf = getParamValue('Low Cutoff (Hz)', 0);
+            highf = getParamValue('High Cutoff (Hz)', min(fs/2*0.99, fs/2));
+            m = max(0, round(getParamValue('FIR order (even)', 128)));
+            if mod(m,2)==1, m = m+1; end
+
+            % sanitize frequencies
+            lowf = max(0, lowf);
+            highf = min(fs/2-1e-6, highf);
+            % design filter based on low/high values
+            y = x;
+            try
+                if highf <= 0 || highf <= lowf
+                    % invalid band -> no filtering
+                    y = x;
+                else
+                    if lowf <= 0
+                        % lowpass with cutoff highf
+                        Wn = highf / (fs/2);
+                        if Wn <= 0 || Wn >= 1
+                            y = x;
+                        else
+                            b = fir1(m, Wn);
+                            y = filter(b, 1, x);
+                        end
+                    elseif highf >= fs/2 - 1e-9
+                        % highpass with cutoff lowf
+                        Wn = lowf / (fs/2);
+                        if Wn <= 0 || Wn >= 1
+                            y = x;
+                        else
+                            b = fir1(m, Wn, 'high');
+                            y = filter(b, 1, x);
+                        end
+                    else
+                        % bandpass
+                        Wn = [lowf highf] / (fs/2);
+                        if Wn(1) <= 0 || Wn(2) >= 1 || Wn(2) <= Wn(1)
+                            y = x;
+                        else
+                            b = fir1(m, Wn);
+                            y = filter(b, 1, x);
+                        end
+                    end
+                end
+            catch
+                % on any failure, fall back to raw noise
+                y = x;
+            end
+            info.type = 'White Noise';
         case 'prbs'
             try
                 hAmp = findobj(hParamPanel,'Tag','prbs_amp');
@@ -1056,25 +1130,50 @@ function [y, t, info] = generateSignalFromUI()
 end
 
 function out = lfsr_prbs(order, seed, Nout, taps)
-    % Simple LFSR producing 0/1 sequence of length Nout
-    if seed <= 0
-        seed = 1;
+    % Robust Fibonacci-style LFSR (MSB-first) producing 0/1 sequence of length Nout
+    % taps should be specified as polynomial degrees, e.g. [13 11] for x^13 + x^11 + 1
+    if nargin<4, taps = []; end
+    if seed == 0
+        seed = 1; % avoid all-zero state
     end
-    % initialize state with seed bits
-    state = bitget(uint32(seed), 1:order);
-    state = state(:)';
-    out = zeros(1,Nout);
-    for k=1:Nout
+    % sanitize taps: keep integers within [1,order]
+    taps = unique(floor(taps));
+    taps = taps(taps>=1 & taps<=order);
+    if isempty(taps)
+        % default primitive-ish taps for small orders (fallback)
+        taps = max(1, order-1);
+    end
+
+    % Initialize state as MSB-first vector: state(1)=bit for x^order, state(order)=LSB
+    state = zeros(1, order);
+    for i = 1:order
+        % bitget with position i extracts bit at weight 2^(i-1) (LSB=1)
+        % we want state(1)=MSB -> bit position = order - 1 + 1 = order
+        state(i) = bitget(uint32(seed), order - i + 1);
+    end
+    % ensure not all zeros
+    if all(state==0)
+        state(end) = 1;
+    end
+
+    out = zeros(1, Nout);
+    % map polynomial degrees to state indices (MSB-first)
+    taps_idx = order - taps + 1; % degree t -> index in state
+    taps_idx = taps_idx(taps_idx>=1 & taps_idx<=order);
+
+    for k = 1:Nout
+        % output bit: take LSB (degree 1) OR take MSB depending on convention
+        % We'll output the LSB (state(end)) to get typical PRBS ordering used elsewhere
         out(k) = state(end);
-        % feedback is xor of taps positions (1-based within order)
+
+        % compute feedback as XOR of the tapped bits (using the provided degrees)
         fb = 0;
-        for tt = taps
-            if tt>=1 && tt<=order
-                fb = xor(fb, state(order-tt+1)); % map 1..order to index
-            end
+        for tt = taps_idx
+            fb = bitxor(fb, state(tt));
         end
-        % shift right
-        state = [fb state(1:end-1)];
+
+        % shift right by one position, insert feedback at MSB (state(1))
+        state = [fb, state(1:end-1)];
     end
 end
 
