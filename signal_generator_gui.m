@@ -280,70 +280,70 @@ end
 
 function generatePreview(~,~)
     try
-        [y, t, info] = generateSignalFromUI();
-        % Performance safeguard: truncate preview to at most MAX_PREVIEW_POINTS samples
-        Ns_orig = numel(y);
+        [y_full, t_full, info] = generateSignalFromUI();
+        % Performance safeguard: only truncate for plotting; keep full arrays for export/encoding
+        Ns_orig = numel(y_full);
         MAX_PREVIEW_POINTS = 5000; % configurable default
-        truncated = false;
         if Ns_orig > MAX_PREVIEW_POINTS
-            y = y(1:MAX_PREVIEW_POINTS);
-            t = t(1:MAX_PREVIEW_POINTS);
+            y_plot = y_full(1:MAX_PREVIEW_POINTS);
+            t_plot = t_full(1:MAX_PREVIEW_POINTS);
             truncated = true;
+        else
+            y_plot = y_full; t_plot = t_full; truncated = false;
         end
         cla(hAx);
-        % plot original preview and tag it so toggleQuantize can find it
+        % plot original preview (use truncated arrays for performance) and tag it so toggleQuantize can find it
         if isfield(info,'type') && strcmpi(info.type,'PRBS')
-            hOrig = stairs(hAx, t, y, '-b');
+            hOrig = stairs(hAx, t_plot, y_plot, '-b');
         else
-            hOrig = plot(hAx, t, y, '-b');
+            hOrig = plot(hAx, t_plot, y_plot, '-b');
         end
         try set(hOrig,'Tag','orig_preview'); catch; end
         grid(hAx,'on');
         title(hAx, sprintf('%s (preview)', info.type));
         xlabel(hAx,'Time (s)'); ylabel(hAx,'Amplitude');
-            if truncated
-                set(hStatus,'String',sprintf('Generated preview (truncated %d->%d samples).', Ns_orig, MAX_PREVIEW_POINTS));
-            else
-                set(hStatus,'String','Generated preview.');
-            end
-            % --- Overlay quantized result only if user enabled the Quantize toggle ---
-            try
-                % Quantize toggle was moved to the bottom of the main figure
-                hBtn = findobj(hFig,'Tag','btn_quantize');
-                doQuant = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
-            catch
-                doQuant = false;
-            end
-            if doQuant
-                try
-                    % read encoding params from the two-popups and fields
-                    [encType, N, frac] = getEncodingParams();
-                    % encode and reconstruct quantized waveform
-                    intQ = encodeSignalToIntegers(y, encType, N, frac);
-                    yq = reconstructFromInts(y, double(intQ), encType, N, frac);
-                    hold(hAx,'on');
-                    % draw quantized waveform (use red, dashed, thinner)
-                    % remove any existing quantized overlay then draw new one (tagged)
-                    oldQ = findobj(hAx,'Tag','quant_preview'); delete(oldQ);
-                    if isfield(info,'type') && strcmpi(info.type,'PRBS')
-                        hQ = stairs(hAx, t, yq, '--r','LineWidth',1.0); %#ok<NASGU>
-                    else
-                        hQ = plot(hAx, t, yq, '--r','LineWidth',1.0); %#ok<NASGU>
-                    end
-                    try set(hQ,'Tag','quant_preview'); catch; end
-                    legend(hAx,{'Original','Quantized'},'Location','best');
-                    hold(hAx,'off');
-                catch
-                    % don't let overlay errors break preview
-                end
-            end
-        % Save generated waveform into shared importedData so import/generate share state
+        if truncated
+            set(hStatus,'String',sprintf('Generated preview (truncated %d->%d samples).', Ns_orig, MAX_PREVIEW_POINTS));
+        else
+            set(hStatus,'String','Generated preview.');
+        end
+        % --- Overlay quantized result only if user enabled the Quantize toggle ---
         try
-            importedData.floatY = y;
-            importedData.t = t;
+            hBtn = findobj(hFig,'Tag','btn_quantize');
+            doQuant = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
+        catch
+            doQuant = false;
+        end
+        if doQuant
+            try
+                % read encoding params from the two-popups and fields
+                [encType, N, frac] = getEncodingParams();
+                % encode and reconstruct quantized waveform using full arrays, then truncate for plotting
+                intQ_full = encodeSignalToIntegers(y_full, encType, N, frac);
+                yq_full = reconstructFromInts(y_full, double(intQ_full), encType, N, frac);
+                yq_plot = yq_full(1:numel(y_plot));
+                hold(hAx,'on');
+                % remove any existing quantized overlay then draw new one (tagged)
+                oldQ = findobj(hAx,'Tag','quant_preview'); delete(oldQ);
+                if isfield(info,'type') && strcmpi(info.type,'PRBS')
+                    hQ = stairs(hAx, t_plot, yq_plot, '--r','LineWidth',1.0); %#ok<NASGU>
+                else
+                    hQ = plot(hAx, t_plot, yq_plot, '--r','LineWidth',1.0); %#ok<NASGU>
+                end
+                try set(hQ,'Tag','quant_preview'); catch; end
+                legend(hAx,{'Original','Quantized'},'Location','best');
+                hold(hAx,'off');
+            catch
+                % don't let overlay errors break preview
+            end
+        end
+        % Save full generated waveform into shared importedData so import/generate share state
+        try
+            importedData.floatY = y_full;
+            importedData.t = t_full;
             % infer and store sample rate when possible
-            if numel(t)>1
-                importedData.fs = 1/(t(2)-t(1));
+            if numel(t_full)>1
+                importedData.fs = 1/(t_full(2)-t_full(1));
             else
                 importedData.fs = [];
             end
@@ -361,7 +361,7 @@ function generatePreview(~,~)
         end
     catch ME
         set(hStatus,'String',['Error: ' ME.message]);
-    end  
+    end
 end
 
 function yq = reconstructFromInts(y_orig, intVals, encType, Nbits, frac)
