@@ -13,6 +13,7 @@
 - **数据导入与预览**：支持多种格式数据文件导入，自动识别元数据并还原信号，便于二次处理和验证。
 - **元数据自动化**：导出/导入均支持自动生成和解析 JSON 元数据，确保数据无歧义流转。
 - **跨平台支持**：核心工具为 MATLAB GUI，同时配套 Python 版本，满足不同开发环境需求。
+
 ## 2 快速入门
 
 1. 推荐先阅读 [📖MATLAB GUI 使用指南](README_GUI_ForMat.md) 或 [📖Python 工具链说明](README_GUI_ForPy.md)，根据开发环境选择合适入口。
@@ -24,17 +25,21 @@
 ## 3 文件结构说明
 
 ```
-FPGA_Stimulus/                  # 工程根目录
-├─ signal_generator_gui.py        # Python GUI 主程序
-├─ signal_generator_gui.m         # MATLAB GUI 主程序
-├─ README_GUI_ForPy.md            # Python 使用说明
-├─ README_GUI_ForMatlab.md        # MATLAB 使用说明
-├─ assets/                        # 截图与示例数据
-├─ build/                         # 打包产物（可忽略于源码仓库）
-├─ requirements.txt               # Python 依赖列表
-├─ readFromCSV.m                  # MATLAB: CSV -> Q1.23 -> 浮点 (忽略首列，容错)
-├─ readFromBIN.m                  # MATLAB: 3 bytes/sample, big-endian, Q1.23 -> 浮点
-└─ examples/                      # 可选：示例数据与使用示例
+FPGA_Stimulus/                      # 工程根目录
+├─ data/                             # 原始与生成的数据（mic_data、whitenoise 等）
+├─ assets/                           # 截图与示例数据
+│
+├─ signal_generator_gui.m            # MATLAB GUI 主程序
+├─ readFromCSV.m                     # MATLAB: CSV -> Q1.23 -> 浮点 (忽略首列，容错)
+├─ readFromBIN.m                     # MATLAB: 3 bytes/sample, big-endian, Q1.23 -> 浮点
+├─ LMS_SYS_ID.m                      # 信号辨识示例脚本
+│
+├─ README.md                         # 本总纲
+├─ README_GUI_ForMat.md              # MATLAB 使用说明
+├─ README_GUI_ForPy.md               # Python 使用说明
+│
+├─ signal_generator_gui.py           # Python GUI 主程序
+└─  requirements.txt                  # Python 依赖列表
 ```
 
 ## 4 典型应用场景
@@ -42,7 +47,6 @@ FPGA_Stimulus/                  # 工程根目录
 - FPGA/DSP 仿真与验证：快速生成定点测试数据，导入仿真环境或硬件平台。
 - 算法开发与定点化：支持浮点到定点的量化、误差分析与可视化。
 - 数据格式转换：在不同工具链、硬件平台间无缝交换信号数据。
-
 
 ## 附录：编码与文件存储格式
 
