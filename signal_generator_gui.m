@@ -405,12 +405,18 @@ function [params, cancelled] = askImportParams(meta, ext, source)
     % If meta provided (non-empty), will use meta and return without prompting.
     % params fields: numericSel, signSel, encodeType, Nbits, frac, vmin, vmax, peak, fs, bps, meta (if used)
     cancelled = false;
-    params = struct('numericSel','Integer (N bits)','signSel','Signed (Two''s complement)','encodeType','Signed',...
+    params = struct('importType','Quantized','numericSel','Integer (N bits)','signSel','Signed (Two''s complement)','encodeType','Signed',...
         'Nbits',24,'frac',0,'vmin',[],'vmax',[],'peak',[],'fs',48000,'bps',[],'meta',[]);
     try
         if ~isempty(meta)
             % populate from metadata and return
             params.meta = meta;
+            % if metadata carries numeric-type info, prefer Quantized, else Raw
+            if isfield(meta,'numericType') || isfield(meta,'numeric_type') || isfield(meta,'Nbits')
+                params.importType = 'Quantized';
+            else
+                params.importType = 'Raw';
+            end
             if isfield(meta,'numericType'), params.numericSel = meta.numericType; end
             if isfield(meta,'numeric_type'), params.numericSel = meta.numeric_type; end
             if isfield(meta,'sign'), params.signSel = meta.sign; end
@@ -440,52 +446,67 @@ function [params, cancelled] = askImportParams(meta, ext, source)
 
     % Build modal dialog for user input
     dpos = get(hFig,'Position');
-    figw = 420; figh = 360; fx = dpos(1)+dpos(3)/2-figw/2; fy = dpos(2)+dpos(4)/2-figh/2;
+    figw = 420; figh = 420; fx = dpos(1)+dpos(3)/2-figw/2; fy = dpos(2)+dpos(4)/2-figh/2;
     hDlg = figure('Name','Import Parameters','NumberTitle','off','MenuBar','none','ToolBar','none', ...
         'Position',[fx fy figw figh],'WindowStyle','modal','Resize','off');
     % ensure dialog controls use consistent font size
     set(hDlg, 'DefaultUicontrolFontSize', 10, 'DefaultUipanelFontSize', 10);
 
     ypos = 1-40/360; gap = 36/360;
-    uicontrol('Parent',hDlg,'Style','text','String','Numeric format:','HorizontalAlignment','left','Position',[10 figh-40 160 20]);
-    hNum = uicontrol('Parent',hDlg,'Style','popupmenu','String',{'Integer (N bits)','Q format (N bits, frac)'},'Position',[180 figh-44 220 24]);
-    uicontrol('Parent',hDlg,'Style','text','String','Sign:','HorizontalAlignment','left','Position',[10 figh-80 160 20]);
-    hSign = uicontrol('Parent',hDlg,'Style','popupmenu','String',{'Unsigned','Signed (Two''s complement)'},'Position',[180 figh-84 220 24]);
+    % Import Type selector: Quantized vs Raw
+    uicontrol('Parent',hDlg,'Style','text','String','Import type:','HorizontalAlignment','left','Position',[10 figh-40 160 20]);
+    hImportType = uicontrol('Parent',hDlg,'Style','popupmenu','String',{'Quantized','Raw'},'Position',[180 figh-44 120 24]);
+    % set initial import type based on metadata (if any)
+    try
+        if isfield(params,'importType') && strcmpi(params.importType,'Raw')
+            set(hImportType,'Value',2);
+        else
+            set(hImportType,'Value',1);
+        end
+    catch
+    end
+
+    % Move sample rate up to second row and shift other controls down
+    uicontrol('Parent',hDlg,'Style','text','String','Numeric format:','HorizontalAlignment','left','Position',[10 figh-120 160 20],'Tag','lab_num');
+    hNum = uicontrol('Parent',hDlg,'Style','popupmenu','String',{'Integer (N bits)','Q format (N bits, frac)'},'Position',[180 figh-124 220 24]);
+    uicontrol('Parent',hDlg,'Style','text','String','Sign:','HorizontalAlignment','left','Position',[10 figh-160 160 20],'Tag','lab_sign');
+    hSign = uicontrol('Parent',hDlg,'Style','popupmenu','String',{'Unsigned','Signed (Two''s complement)'},'Position',[180 figh-164 220 24]);
 
     % N bits
-    uicontrol('Parent',hDlg,'Style','text','String','N bits (total):','HorizontalAlignment','left','Position',[10 figh-120 160 20]);
-    hN = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.Nbits),'Position',[180 figh-124 120 24]);
+    uicontrol('Parent',hDlg,'Style','text','String','N bits (total):','HorizontalAlignment','left','Position',[10 figh-200 160 20],'Tag','lab_nbits');
+    hN = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.Nbits),'Position',[180 figh-204 120 24],'Tag','edit_nbits');
     % frac (for Q)
-    uicontrol('Parent',hDlg,'Style','text','String','Frac bits:','HorizontalAlignment','left','Position',[10 figh-160 160 20],'Tag','lab_frac');
-    hFrac = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.frac),'Position',[180 figh-164 120 24],'Tag','edit_frac');
+    uicontrol('Parent',hDlg,'Style','text','String','Frac bits:','HorizontalAlignment','left','Position',[10 figh-240 160 20],'Tag','lab_frac');
+    hFrac = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.frac),'Position',[180 figh-244 120 24],'Tag','edit_frac');
 
     % vmin/vmax or peak
-    uicontrol('Parent',hDlg,'Style','text','String','vmin (for unsigned):','HorizontalAlignment','left','Position',[10 figh-200 160 20],'Tag','lab_vmin');
-    hVmin = uicontrol('Parent',hDlg,'Style','edit','String','-1','Position',[180 figh-204 120 24],'Tag','edit_vmin');
-    uicontrol('Parent',hDlg,'Style','text','String','vmax (for unsigned):','HorizontalAlignment','left','Position',[10 figh-240 160 20],'Tag','lab_vmax');
-    hVmax = uicontrol('Parent',hDlg,'Style','edit','String','1','Position',[180 figh-244 120 24],'Tag','edit_vmax');
+    uicontrol('Parent',hDlg,'Style','text','String','vmin (for unsigned):','HorizontalAlignment','left','Position',[10 figh-280 160 20],'Tag','lab_vmin');
+    hVmin = uicontrol('Parent',hDlg,'Style','edit','String','-1','Position',[180 figh-284 120 24],'Tag','edit_vmin');
+    uicontrol('Parent',hDlg,'Style','text','String','vmax (for unsigned):','HorizontalAlignment','left','Position',[10 figh-320 160 20],'Tag','lab_vmax');
+    hVmax = uicontrol('Parent',hDlg,'Style','edit','String','1','Position',[180 figh-324 120 24],'Tag','edit_vmax');
 
-    uicontrol('Parent',hDlg,'Style','text','String','Peak (for signed):','HorizontalAlignment','left','Position',[10 figh-200 160 20],'Visible','off','Tag','lab_peak');
-    hPeak = uicontrol('Parent',hDlg,'Style','edit','String','1','Position',[180 figh-204 120 24],'Visible','off','Tag','edit_peak');
+    uicontrol('Parent',hDlg,'Style','text','String','Peak (for signed):','HorizontalAlignment','left','Position',[10 figh-280 160 20],'Visible','off','Tag','lab_peak');
+    hPeak = uicontrol('Parent',hDlg,'Style','edit','String','1','Position',[180 figh-284 120 24],'Visible','off','Tag','edit_peak');
 
-    % fs
-    uicontrol('Parent',hDlg,'Style','text','String','Sample rate (Hz):','HorizontalAlignment','left','Position',[10 figh-280 160 20]);
-    hFs = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.fs),'Position',[180 figh-284 120 24]);
+    % fs (moved up to second row under import type)
+    uicontrol('Parent',hDlg,'Style','text','String','Sample rate (Hz):','HorizontalAlignment','left','Position',[10 figh-80 160 20]);
+    hFs = uicontrol('Parent',hDlg,'Style','edit','String',num2str(params.fs),'Position',[180 figh-84 120 24],'Tag','edit_fs');
 
     % bytes per sample (for bin) - shown only if ext == '.bin' or user wants
-    hLabB = uicontrol('Parent',hDlg,'Style','text','String','Bytes/sample (bin only):','HorizontalAlignment','left','Position',[10 figh-320 160 20],'Visible','off');
-    hBps = uicontrol('Parent',hDlg,'Style','edit','String','','Position',[180 figh-324 120 24],'Visible','off');
+    hLabB = uicontrol('Parent',hDlg,'Style','text','String','Bytes/sample (bin only):','HorizontalAlignment','left','Position',[10 figh-400 160 20],'Visible','off','Tag','lab_bps');
+    hBps = uicontrol('Parent',hDlg,'Style','edit','String','','Position',[180 figh-404 120 24],'Visible','off','Tag','edit_bps');
     if strcmpi(ext,'.bin')
         set(hLabB,'Visible','on'); set(hBps,'Visible','on'); set(hBps,'String','2');
     end
 
     % OK / Cancel
-    uicontrol('Parent',hDlg,'Style','pushbutton','String','OK','Position',[figw-200 10 80 28],'Callback',@okCb);
-    uicontrol('Parent',hDlg,'Style','pushbutton','String','Cancel','Position',[figw-100 10 80 28],'Callback',@cancelCb);
+    uicontrol('Parent',hDlg,'Style','pushbutton','String','OK','Position',[figw-220 10 80 28],'Callback',@okCb);
+    uicontrol('Parent',hDlg,'Style','pushbutton','String','Cancel','Position',[figw-120 10 80 28],'Callback',@cancelCb);
 
     % dynamic visibility callback
     set(hNum,'Callback',@updateVis);
     set(hSign,'Callback',@updateVis);
+    set(hImportType,'Callback',@updateVis);
     updateVis();
 
     uiwait(hDlg);
@@ -495,6 +516,8 @@ function [params, cancelled] = askImportParams(meta, ext, source)
 
     % collect results from controls
     try
+        % import type
+        itmp = get(hImportType,'Value'); itms = get(hImportType,'String'); params.importType = itms{itmp};
         params.numericSel = hNum.String{get(hNum,'Value')};
         params.signSel = hSign.String{get(hSign,'Value')};
         params.Nbits = max(1, round(str2double(get(hN,'String'))));
@@ -504,7 +527,7 @@ function [params, cancelled] = askImportParams(meta, ext, source)
         params.peak = str2double(get(hPeak,'String'));
         params.fs = str2double(get(hFs,'String'));
         if isvalid(hBps)
-            bpss = str2double(get(hBps,'String')); 
+            bpss = str2double(get(hBps,'String'));
             if ~isnan(bpss), params.bps = bpss; end
         end
         if contains(params.numericSel,'Q')
@@ -525,6 +548,7 @@ function updateVis(~,~)
     try
     ns = hNum.String{get(hNum,'Value')};
     ss = hSign.String{get(hSign,'Value')};
+    it = hImportType.String{get(hImportType,'Value')};
     if contains(ns,'Q')
         set(findobj(hDlg,'Tag','lab_frac'),'Visible','on'); set(findobj(hDlg,'Tag','edit_frac'),'Visible','on');
     else
@@ -536,6 +560,40 @@ function updateVis(~,~)
     else
         set(hVmin,'Visible','off'); set(hVmax,'Visible','off'); set(findobj(hDlg,'Tag','lab_vmin'),'Visible','off'); set(findobj(hDlg,'Tag','lab_vmax'),'Visible','off');
         set(hPeak,'Visible','on'); set(findobj(hDlg,'Tag','lab_peak'),'Visible','on');
+    end
+    % If user chose Raw import, hide encoding-specific controls
+    if strcmpi(it,'Raw')
+        % hide numeric/sign/nbits/frac/vmin/vmax/peak/bytes-per-sample
+        set(findobj(hDlg,'Tag','lab_num'),'Visible','off'); set(hNum,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_sign'),'Visible','off'); set(hSign,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_nbits'),'Visible','off'); set(hN,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_frac'),'Visible','off'); set(hFrac,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_vmin'),'Visible','off'); set(hVmin,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_vmax'),'Visible','off'); set(hVmax,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_peak'),'Visible','off'); set(hPeak,'Visible','off');
+        set(findobj(hDlg,'Tag','lab_bps'),'Visible','off'); set(hBps,'Visible','off');
+        % leave only sample rate visible for raw imports
+        set(findobj(hDlg,'Tag','edit_fs'),'Visible','on');
+    else
+        % show back encoding controls
+        set(findobj(hDlg,'Tag','lab_num'),'Visible','on'); set(hNum,'Visible','on');
+        set(findobj(hDlg,'Tag','lab_sign'),'Visible','on'); set(hSign,'Visible','on');
+        set(findobj(hDlg,'Tag','lab_nbits'),'Visible','on'); set(hN,'Visible','on');
+        set(findobj(hDlg,'Tag','lab_frac'),'Visible','on'); set(hFrac,'Visible','on');
+        % show vmin/vmax or peak according to sign selection
+        if contains(ss,'Unsigned')
+            set(findobj(hDlg,'Tag','lab_vmin'),'Visible','on'); set(hVmin,'Visible','on'); set(findobj(hDlg,'Tag','lab_vmax'),'Visible','on'); set(hVmax,'Visible','on');
+            set(findobj(hDlg,'Tag','lab_peak'),'Visible','off'); set(hPeak,'Visible','off');
+        else
+            set(findobj(hDlg,'Tag','lab_vmin'),'Visible','off'); set(hVmin,'Visible','off'); set(findobj(hDlg,'Tag','lab_vmax'),'Visible','off'); set(hVmax,'Visible','off');
+            set(findobj(hDlg,'Tag','lab_peak'),'Visible','on'); set(hPeak,'Visible','on');
+        end
+        % show bytes-per-sample only if ext==.bin
+        if strcmpi(ext,'.bin')
+            set(findobj(hDlg,'Tag','lab_bps'),'Visible','on'); set(hBps,'Visible','on');
+        else
+            set(findobj(hDlg,'Tag','lab_bps'),'Visible','off'); set(hBps,'Visible','off');
+        end
     end
     catch
     end
@@ -786,77 +844,127 @@ function importCallback(~,~)
     if isfield(params,'meta')
         importedData.meta = params.meta;
     end
-    % 文件读取
-    switch ext
-        case {'.hex','.mem'}
-            txt = fileread(fullpath);
-            lines = regexp(txt,'\r?\n','split');
-            vals = [];
-            for k=1:numel(lines)
-                s = strtrim(lines{k});
-                if isempty(s), continue; end
-                try
-                    s2 = regexprep(s,'^0x','');
-                    v = hex2dec(s2);
-                    vals(end+1) = v; %#ok<AGROW>
-                catch
-                end
-            end
-            intVals = uint64(vals);
-        case '.coe'
-            txt = fileread(fullpath);
-            m = regexp(txt,'memory_initialization_vector\s*=\s*([^;]+);','tokens','ignorecase');
-            if isempty(m), error('COE: cannot find initialization vector'); end
-            vec = m{1}{1};
-            parts = regexp(vec,',','split');
-            vals = zeros(1,numel(parts));
-            for k=1:numel(parts), vals(k)=hex2dec(strtrim(parts{k})); end
-            intVals = uint64(vals);
-        case '.mif'
-            fid = fopen(fullpath,'r'); txt = textscan(fid,'%s','Delimiter','\n'); fclose(fid);
-            lines = txt{1}; vals = [];
-            inContent = false;
-            for k=1:numel(lines)
-                s = strtrim(lines{k}); if isempty(s), continue; end
-                if startsWith(upper(s),'CONTENT BEGIN')
-                    inContent = true; continue;
-                end
-                if ~inContent, continue; end
-                if startsWith(upper(s),'END'), break; end
-                parts = regexp(s,':','split');
-                if numel(parts)>=2
-                    dataPart = parts{2}; dataPart = regexprep(dataPart,';',''); dataPart = strtrim(dataPart);
-                    try vals(end+1)=hex2dec(dataPart); catch; end
-                end
-            end
-            intVals = uint64(vals);
-        case '.csv'
-            M = readmatrix(fullpath);
-            intVals = uint64(M(:)');
-        case '.bin'
-            fid = fopen(fullpath,'r'); data = fread(fid,'uint8'); fclose(fid);
-            n = numel(data);
-            if mod(n,bps)~=0, warning('File size not a multiple of bytes per sample'); end
-            nsamples = floor(n/bps);
-            vals = zeros(1,nsamples,'uint64');
-            for i=1:nsamples
-                idx2 = (i-1)*bps + (1:bps);
-                v = uint64(0);
-                for j=1:bps
-                    v = bitor(bitshift(v,8), uint64(data(idx2(j))));
-                end
-                vals(i)=v;
-            end
-            intVals = uint64(vals);
-        otherwise
-            error('Unsupported extension: %s',ext);
-    end
-    % Use a shared handler to set importedData and preview
-    params2 = struct('numericSel',numericSel,'signSel',signSel,'encodeType',encodeType,'Nbits',Nbits,'frac',frac,'vmin',vmin,'vmax',vmax,'peak',peak,'fs',fs,'bps',bps);
+    % Delegate to shared import handler which covers both file and workspace
     try
-        handleImportedInts(uint64(intVals), fullpath, params2);
+        performImport('file', fullpath, [], ext, params);
     catch ME
-        set(hStatus,'String',['Import handling error: ' ME.message]);
+        set(hStatus,'String',['Import failed: ' ME.message]);
+    end
+end
+
+function performImport(sourceType, source, payload, ext, params)
+    % Unified import handler for 'file' or 'workspace'
+    % sourceType: 'file' or 'workspace'
+    % source: fullpath or workspace variable name (string)
+    % payload: for workspace imports, the variable data; for file imports, pass []
+    % ext: file extension for file imports (e.g. '.csv'); for workspace, can be ''
+    % params: import parameters returned by askImportParams
+    if nargin<5, params = struct(); end
+    try
+        % raw import path
+        if isfield(params,'importType') && strcmpi(params.importType,'Raw')
+            if strcmpi(sourceType,'file')
+                switch lower(ext)
+                    case '.csv'
+                        M = readmatrix(source);
+                        y = double(M(:)');
+                    case '.mat'
+                        S = load(source);
+                        flds = fieldnames(S); y = [];
+                        for k=1:numel(flds)
+                            v = S.(flds{k});
+                            if isnumeric(v) && (isvector(v) || ismatrix(v))
+                                y = double(v(:)'); break;
+                            end
+                        end
+                        if isempty(y), error('No numeric variable found in MAT file'); end
+                    otherwise
+                        error('Raw import not supported for %s files', ext);
+                end
+            else
+                % workspace payload expected
+                if isempty(payload) || ~isnumeric(payload)
+                    error('Workspace variable not numeric for Raw import');
+                end
+                y = double(payload(:)');
+            end
+            % store and preview
+            importedData.floatY = y;
+            importedData.intVals = [];
+            if strcmpi(sourceType,'file'), importedData.fileName = source; else importedData.fileName = ['workspace:' source]; end
+            importedData.fs = params.fs;
+            if isempty(importedData.fs) || isnan(importedData.fs) || importedData.fs<=0, importedData.fs = 48000; end
+            importedData.t = (0:numel(y)-1)/importedData.fs;
+            importedData.info = struct('type','Imported (raw)');
+            cla(hAx);
+            if numel(unique(y))<=2, stairs(hAx, importedData.t, y); else plot(hAx, importedData.t, y); end
+            if strcmpi(sourceType,'file'), title(hAx,['Imported (raw): ' source]); set(hStatus,'String',['Imported raw data (' num2str(numel(y)) ' samples) from ' source]); else title(hAx,['Imported (raw): workspace:' source]); set(hStatus,'String',['Imported raw variable ''' source ''' from workspace (' num2str(numel(y)) ' samples)']); end
+            return;
+        end
+
+        % Quantized path: parse ints (from file) or accept/derive ints (from workspace)
+        if strcmpi(sourceType,'file')
+            % parse file into integer vector
+            switch lower(ext)
+                case {'.hex','.mem'}
+                    txt = fileread(source);
+                    lines = regexp(txt,'\r?\n','split'); vals = [];
+                    for k=1:numel(lines)
+                        s = strtrim(lines{k}); if isempty(s), continue; end
+                        try s2 = regexprep(s,'^0x',''); v = hex2dec(s2); vals(end+1)=v; catch; end
+                    end
+                    intVals = uint64(vals);
+                case '.coe'
+                    txt = fileread(source);
+                    m = regexp(txt,'memory_initialization_vector\s*=\s*([^;]+);','tokens','ignorecase');
+                    if isempty(m), error('COE: cannot find initialization vector'); end
+                    vec = m{1}{1}; parts = regexp(vec,',','split'); vals = zeros(1,numel(parts)); for k=1:numel(parts), vals(k)=hex2dec(strtrim(parts{k})); end
+                    intVals = uint64(vals);
+                case '.mif'
+                    fid = fopen(source,'r'); txt = textscan(fid,'%s','Delimiter','\n'); fclose(fid); lines = txt{1}; vals = []; inContent=false;
+                    for k=1:numel(lines)
+                        s = strtrim(lines{k}); if isempty(s), continue; end
+                        if startsWith(upper(s),'CONTENT BEGIN'), inContent=true; continue; end
+                        if ~inContent, continue; end
+                        if startsWith(upper(s),'END'), break; end
+                        parts = regexp(s,':','split'); if numel(parts)>=2, dataPart = parts{2}; dataPart = regexprep(dataPart,';',''); dataPart = strtrim(dataPart); try vals(end+1)=hex2dec(dataPart); catch; end; end
+                    end
+                    intVals = uint64(vals);
+                case '.csv'
+                    M = readmatrix(source); intVals = uint64(M(:)');
+                case '.bin'
+                    fid = fopen(source,'r'); data = fread(fid,'uint8'); fclose(fid); n=numel(data);
+                    bps = params.bps; if isempty(bps) || isnan(bps) || bps<1, bps=ceil(params.Nbits/8); end
+                    if mod(n,bps)~=0, warning('File size not a multiple of bytes per sample'); end
+                    nsamples = floor(n/bps); vals = zeros(1,nsamples,'uint64');
+                    for i=1:nsamples
+                        idx2 = (i-1)*bps + (1:bps); v = uint64(0);
+                        for j=1:bps, v = bitor(bitshift(v,8), uint64(data(idx2(j)))); end
+                        vals(i)=v;
+                    end
+                    intVals = uint64(vals);
+                otherwise
+                    error('Unsupported extension: %s', ext);
+            end
+            srcName = source;
+        else
+            % workspace payload -> either integer vector or float to quantize
+            if isinteger(payload) || all(mod(payload(:),1)==0)
+                intVals = uint64(payload(:)');
+            else
+                y = double(payload(:)');
+                encType = params.encodeType; Nbits = params.Nbits; frac = params.frac;
+                intVals = encodeSignalToIntegers(y, encType, Nbits, frac);
+            end
+            srcName = ['workspace:' source];
+        end
+
+        % prepare params2 and call shared handler
+        numericSel = params.numericSel; signSel = params.signSel; encodeType = params.encodeType; Nbits = params.Nbits; frac = params.frac; vmin = params.vmin; vmax = params.vmax; peak = params.peak; fs = params.fs; bps = params.bps;
+        params2 = struct('numericSel',numericSel,'signSel',signSel,'encodeType',encodeType,'Nbits',Nbits,'frac',frac,'vmin',vmin,'vmax',vmax,'peak',peak,'fs',fs,'bps',bps);
+        handleImportedInts(uint64(intVals), srcName, params2);
+    catch ME
+        rethrow(ME);
     end
 end
 
@@ -939,33 +1047,17 @@ function importFromWorkspaceCallback(~,~)
     if ~isnumeric(data)
         set(hStatus,'String','Selected variable is not numeric'); return;
     end
-    % If integer-like, treat as encoded integers; otherwise treat as float waveform
-    if isinteger(data) || all(mod(data(:),1)==0)
-        % reuse shared handler for workspace-imported integers
-        intValsW = uint64(data(:)');
-        [params, cancelled] = askImportParams([], '', 'workspace');
-        if cancelled
-            set(hStatus,'String','Import cancelled');
-            return;
-        end
-        params2 = struct('numericSel',params.numericSel,'signSel',params.signSel,'encodeType',params.encodeType,'Nbits',params.Nbits,'frac',params.frac,'vmin',params.vmin,'vmax',params.vmax,'peak',params.peak,'fs',params.fs,'bps',params.bps,'meta',[]);
-        try
-            handleImportedInts(intValsW, ['workspace:' vname], params2);
-        catch ME
-            set(hStatus,'String',['Import handling error: ' ME.message]);
-        end
-    else
-        y = double(data(:)');
-        importedData.floatY = y;
-        importedData.intVals = [];
-        importedData.fileName = ['workspace:' vname];
-        importedData.fs = 48000; % assume default sample rate if not known
-        importedData.t = (0:numel(y)-1)/importedData.fs;
-        importedData.info = struct('type','Imported (workspace)');
-        cla(hAx);
-        plot(hAx, importedData.t, y);
-        title(hAx,['Imported (float): workspace:' vname]);
-        set(hStatus,'String',['Imported float variable ''' vname ''' from workspace (' num2str(numel(y)) ' samples)']);
+    % Ask user for import params (same dialog as file import)
+    [params, cancelled] = askImportParams([], '', 'workspace');
+    if cancelled
+        set(hStatus,'String','Import cancelled');
+        return;
+    end
+    % Delegate to shared import worker
+    try
+        performImport('workspace', vname, data, '', params);
+    catch ME
+        set(hStatus,'String',['Import failed: ' ME.message]);
     end
 end
 
