@@ -1,8 +1,10 @@
 % clear; close all; clc;
 
 %% 管道仿真数据
-x = double(exported_signal)';
+x = double(exported_signal)'/rms(exported_signal);
 y = mic_data(1:480000);
+x(end) = [];
+y(end) = [];
 Fs = 48000;
 
 % [x, y, t, Fs] = DataManager(20);
@@ -86,7 +88,7 @@ grid on;
 
 %% 2 LMS次级通路辨识
 % LMS算法参数设置
-mu = 5e-5;  % 步长因子，控制收敛速度和稳定性
+mu = 1e-5;  % 步长因子，控制收敛速度和稳定性
 filter_order = 2^10;  % 滤波器阶数
 w = zeros(filter_order, 1);  % 初始化滤波器权重
 N = length(data_x);  % 数据长度

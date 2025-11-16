@@ -1,8 +1,19 @@
-% 读取二进制文件中的 24-bit 样本（每 3 字节为 1 个 sample），并将其解释为有符号 Q1.23，输出浮点数组 mic_float
-clear; close all; clc;
+function [mic_float, nsamples] = readFromBIN(filename)
+% readFromBIN - 读取 .bin 文件中的 24-bit (3-byte) 样本并转换为 Q1.23 浮点
+%
+% SYNTAX
+%   [mic_float, nsamples] = readFromBIN(filename)
+%
+% INPUT
+%   filename - 可选，二进制文件路径（字符串）。若未提供，使用当前目录下的默认文件名。
+%
+% OUTPUT
+%   mic_float - double 向量，Q1.23 转换后的浮点样本
+%   nsamples  - 解析出的样本数
 
-% 修改为你的 .bin 文件路径
-filename = 'sine_0.1_1kHzQ1_23.bin';
+if nargin < 1 || isempty(filename)
+    fprintf('未提供文件名\n');
+end
 
 fid = fopen(filename, 'rb');
 if fid == -1
@@ -55,3 +66,4 @@ end
 % save('mic_float_from_bin.mat', 'mic_float');
 
 fprintf('完成：变量 mic_float 已在工作区。\n');
+end

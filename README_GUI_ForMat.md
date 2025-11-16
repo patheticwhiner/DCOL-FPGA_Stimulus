@@ -16,21 +16,21 @@
 - 导入：支持导入 `.hex` / `.mem` / `.bin` / `.csv` 等格式，并在导入对话中支持使用伴随的 metadata JSON 文件（例如 `foo.bin.meta.json`）自动填充位宽、采样率等信息；导入对话可手工指定 `N bits`、`Frac bits`、`Signed/Unsigned`、`vmin/vmax`（用于 unsigned 恢复）和二进制的 bytes-per-sample。
 - 工作区交互：可以从 MATLAB base workspace 导入变量，或把生成/编码后的数据导出到 workspace。
 - 交互工具：支持缩放/平移/数据光标、保存图像，状态栏显示操作反馈。
+- **数据结构统一**：所有数据来源（Generate、Import、Import from Workspace）都统一存入 `importedData` 结构体，字段包括 floatY（原始浮点）、intVals（量化整数）、t（时间轴）、fs（采样率）、Nbits、frac、encodeType、fileName、meta 等，后一次数据获取会覆盖前一次。
+- **量化与原始数据区分**：预览区始终显示原始浮点波形，Quantize 按钮控制是否叠加量化曲线。导出/导出到工作区时，Quantize=ON 导出量化数据（整数），Quantize=OFF 导出原始数据（浮点）。
 
 ## 快速上手
 
 1. 将含本仓库的目录加入 MATLAB 路径或切换到该目录。
 2. 在命令行运行：
 
-    ```matlab
-    signal_generator_gui
-    ```
-
+   ```matlab
+   signal_generator_gui
+   ```
 3. 在界面顶部选择信号类型与编码（Signed/Unsigned、Integer/Q-format），在左侧填写信号参数（例如 Amplitude、Frequency、Time、Sample rate 等），点击 `Generate & Preview` 查看模拟波形与量化后波形（右侧编码参数生效）。
-
 4. 使用 `Export...` 保存为所需格式；若需要将目前生成的数据送回 MATLAB 环境，可使用 `Export to Workspace`。
-
 5. 使用 `Import...` 加载已有样本文件，程序会尝试查找伴随的 meta 文件以自动填充参数，或通过对话手工输入参数完成恢复。
+6. 使用 `Import from Workspace` 可直接导入 MATLAB base workspace 中的变量（支持浮点或整数），导入后会覆盖当前数据。
 
 ## 信号与参数（实现要点）
 
@@ -43,22 +43,29 @@
 - Q-format：按用户指定的 frac bits 将信号乘以 2^frac 并四舍五入，然后截断到目标位宽并以二补数表示写入文件。
 - Unsigned 整数：导出时程序会使用 signal 的峰值或用户给出的 vmin/vmax 将浮点值线性映射到 [0, 2^N−1]。
 - 导出 `.bin`：按大端字节序写入，每样本使用 `ceil(Nbits/8)` 字节；导入对话允许用户指定 bytes-per-sample 以兼容不同来源。
+- **导出行为与量化联动**：
+  - Quantize=ON 时，`Export...` 和 `Export to Workspace` 导出量化后的整数数据（intVals 或由 floatY+编码参数生成）。
+  - Quantize=OFF 时，导出原始浮点数据（floatY），文件建议用 CSV 格式，工作区变量为浮点向量。
 
 ## 导入流程与元数据
 
 - 导入对话支持读取伴随的 JSON 元数据文件（常见名为 `name.meta.json` 或 `name.json`），若存在则跳过提示并直接使用元数据恢复浮点值。
 - 如果没有元数据，Import 对话会让用户输入必要的编码参数（N bits / frac / Signed/Unsigned / vmin / vmax / fs / bytes per sample），并在读取后把还原的波形显示在预览区。
+- 所有导入数据（文件/工作区）都会覆盖当前数据，且统一存入 `importedData` 结构体。
 
 ## 交互与预览行为
 
 - 预览会在绘图前对过多点数做截断以保证 UI 响应（默认最多 5000 点，代码变量名为 MAX_PREVIEW_POINTS）。
 - PRBS 使用 `stairs` 绘制以反映离散电平变化；其它信号使用 `plot`。
 - 导入后会把整数样本保存在内部结构 `importedData` 中，并在状态栏显示导入源与样本数。
+- Quantize 按钮控制是否叠加量化曲线，且影响导出行为。
 
 ## 已知问题与建议（TODO）
 
 - PRBS 生成需要进一步验证：虽然目前实现改为 MSB-first 的 Fibonacci LFSR 并增加了 taps 的可配置性，但仍建议补充一组参考向量（不同阶、不同 taps、已知 seed 下产生的比特序列）用于单元测试，以确认在各种参数下的周期性与统计特性符合预期。
 - White Noise 的 FIR 设计依赖于 `fir1`（Signal Processing Toolbox）；若目标环境无该工具箱，建议在 README 或启动时提示用户，并提供回退选项或在导出前使用离线脚本完成滤波。
+- 代码静态分析有部分警告（未用参数、try 没有 catch、单行 if/else 可读性等），建议后续逐步清理以提升可维护性。
+- 导入工作区浮点变量时默认采样率为 48000Hz，如需自定义可在导入后手动修改 `importedData.fs` 并重新预览。
 
 ---
 

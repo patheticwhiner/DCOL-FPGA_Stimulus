@@ -14,6 +14,9 @@ function signal_generator_gui()
 hFig = figure('Name','Signal Generator','NumberTitle','off', 'MenuBar','none', ...
     'ToolBar','none','Position',[300 200 1200 800]);
 
+% Set default UI font sizes for controls/panels created under this figure
+set(hFig, 'DefaultUicontrolFontSize', 10, 'DefaultUipanelFontSize', 10);
+
 % Layout: top controls, left parameters panel, right encoding panel, big axes below
 % Top: Signal & Fixed-format selectors
 uicontrol('Parent',hFig,'Style','text','String','Signal:','Units','normalized',...
@@ -38,15 +41,15 @@ hParamPanel = uipanel('Parent',hFig,'Title','Parameters','Units','normalized',..
 
 % Right encoding panel to show encoding params nicely 
 hEncodePanel = uipanel('Parent',hFig,'Title','Encoding Params','Units','normalized',...
-    'Position',[0.50 0.62 0.48 0.26],'FontSize',10);
+    'Position',[0.50 0.62 0.48 0.3],'FontSize',10);
 
 % Interaction controls (Zoom / Pan / Data Cursor / Reset / Save)
 btnZoom = uicontrol('Parent',hFig,'Style','togglebutton','String','Zoom','Units','normalized',...
-    'Position',[0.50 0.565 0.055 0.035],'Callback',@toggleZoom,'FontSize',9);
+    'Position',[0.50 0.565 0.055 0.035],'Callback',@toggleZoom,'FontSize',10);
 btnPan = uicontrol('Parent',hFig,'Style','togglebutton','String','Pan','Units','normalized',...
-    'Position',[0.56 0.565 0.055 0.035],'Callback',@togglePan,'FontSize',9);
+    'Position',[0.56 0.565 0.055 0.035],'Callback',@togglePan,'FontSize',10);
 btnData = uicontrol('Parent',hFig,'Style','togglebutton','String','Data Cursor','Units','normalized',...
-    'Position',[0.62 0.565 0.085 0.035],'Callback',@toggleDataCursor,'FontSize',9);
+    'Position',[0.62 0.565 0.085 0.035],'Callback',@toggleDataCursor,'FontSize',10);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Reset View','Units','normalized',...
     'Position',[0.71 0.565 0.07 0.035],'Callback',@resetView,'FontSize',9);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Save Fig','Units','normalized',...
@@ -56,6 +59,8 @@ uicontrol('Parent',hFig,'Style','pushbutton','String','Save Fig','Units','normal
 
 % Big axes below
 hAx = axes('Parent',hFig,'Units','normalized','Position',[0.05 0.14 0.90 0.36]);
+% tag the main axes so callbacks outside nested scope can find it if needed
+set(hAx,'Tag','main_axes');
 title(hAx,'Preview');
 xlabel(hAx,'Time (s)');
 ylabel(hAx,'Amplitude');
@@ -64,30 +69,43 @@ ylabel(hAx,'Amplitude');
 %     'Position',[0.05 0.10 0.90 0.03],'HorizontalAlignment','left');
 % Status bar
 hStatus = uicontrol('Parent',hFig,'Style','text','String','Ready','Units','normalized',...
-    'Position',[0.04 0.07 0.96 0.02],'HorizontalAlignment','left','FontSize',9);
+    'Position',[0.04 0.07 0.96 0.02],'HorizontalAlignment','left','FontSize',10);
 
-% Bottom action buttons
+% Bottom action buttons - reflowed with uniform margins and gaps
+% Layout parameters: left/right margin = 0.04, button width = 0.12, gap = 0.04
+btn_w = 0.12; btn_gap = 0.04; left_margin = 0.04; y_pos = 0.02; btn_h = 0.04;
+uicontrol('Parent',hFig,'Style','togglebutton','String','Quantize','Units','normalized',...
+    'Position',[left_margin, y_pos, btn_w, btn_h],'Tag','btn_quantize','FontSize',10,'Value',0, 'TooltipString','Toggle to overlay quantized waveform on preview','Callback',@toggleQuantize);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Generate & Preview','Units','normalized',...
-    'Position',[0.12 0.02 0.12 0.04],'Callback',@generatePreview,'FontSize',10);
+    'Position',[left_margin + (btn_w+btn_gap)*1, y_pos, btn_w, btn_h],'Callback',@generatePreview,'FontSize',10);
 % Import button (between Generate and Export)
 uicontrol('Parent',hFig,'Style','pushbutton','String','Import...','Units','normalized',...
-    'Position',[0.30 0.02 0.12 0.04],'Callback',@importCallback,'FontSize',10);
+    'Position',[left_margin + (btn_w+btn_gap)*2, y_pos, btn_w, btn_h],'Callback',@importCallback,'FontSize',10);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Export...','Units','normalized',...
-    'Position',[0.48 0.02 0.12 0.04],'Callback',@exportCallback,'FontSize',10);
+    'Position',[left_margin + (btn_w+btn_gap)*3, y_pos, btn_w, btn_h],'Callback',@exportCallback,'FontSize',10);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Import from Workspace','Units','normalized',...
-    'Position',[0.66 0.02 0.12 0.04],'Callback',@importFromWorkspaceCallback,'FontSize',10);
+    'Position',[left_margin + (btn_w+btn_gap)*4, y_pos, btn_w, btn_h],'Callback',@importFromWorkspaceCallback,'FontSize',10);
 uicontrol('Parent',hFig,'Style','pushbutton','String','Export to Workspace','Units','normalized',...
-    'Position',[0.84 0.02 0.12 0.04],'Callback',@exportToWorkspaceCallback,'FontSize',10);
+    'Position',[left_margin + (btn_w+btn_gap)*5, y_pos, btn_w, btn_h],'Callback',@exportToWorkspaceCallback,'FontSize',10);
 
 % Initialize default parameter controls
 currentParams = struct();
 createParamControls('Sine');
 createEncodeControls();
 
-% storage for imported data
+% storage for imported data (canonical unified structure used by generate/import)
+importedData = struct();
+importedData.floatY = [];
+importedData.t = [];
+importedData.info = [];
 importedData.intVals = [];
 importedData.fileName = '';
 importedData.Nbits = [];
+importedData.fs = [];
+importedData.frac = [];
+importedData.encodeType = '';
+importedData.meta = [];
+importedData.lastEncode = [];
 
 % No dragging in the new layout
 
@@ -178,6 +196,15 @@ function createEncodeControls()
     % read numeric and sign selections
     try
         numOpts = get(hNumType,'String'); numVal = get(hNumType,'Value');
+            % Ensure quantized overlay respects toggle state even if doQuant is false
+            % (i.e., remove existing overlay when toggle is off)
+            try
+                hBtnCheck = findobj(hFig,'Tag','btn_quantize');
+                if isempty(hBtnCheck) || ~get(hBtnCheck,'Value')
+                    oldQ2 = findobj(hAx,'Tag','quant_preview'); delete(oldQ2);
+                end
+            catch
+            end
         numSel = numOpts{numVal};
     catch
         numSel = 'Q format (N bits, frac)';
@@ -206,9 +233,9 @@ function createEncodeControls()
     else
         % integer type: no frac
         uicontrol('Parent',hEncodePanel,'Style','text','String','Frac bits: (not used)','Units','normalized',...
-            'Position',[0.03 0.36 0.38 0.16],'HorizontalAlignment','left','FontSize',9);
+            'Position',[0.03 0.36 0.38 0.16],'HorizontalAlignment','left','FontSize',10);
         uicontrol('Parent',hEncodePanel,'Style','text','String',' ','Units','normalized',...
-            'Position',[0.52 0.36 0.16 0.16],'HorizontalAlignment','left','FontSize',9,'Tag','enc_frac');
+            'Position',[0.52 0.36 0.16 0.16],'HorizontalAlignment','left','FontSize',10,'Tag','enc_frac');
         if contains(signSel,'Unsigned')
             mapStr = 'Mapping: signal normalized to [-1,1] then to unsigned [0,2^N-1]';
         else
@@ -216,10 +243,8 @@ function createEncodeControls()
         end
     end
     uicontrol('Parent',hEncodePanel,'Style','text','String',mapStr,'Units','normalized',...
-        'Position',[0.03 0.02 0.92 0.12],'HorizontalAlignment','left','FontSize',9);
-    % Add a toggle button to enable/disable quantization overlay in preview
-    uicontrol('Parent',hEncodePanel,'Style','togglebutton','String','Quantize','Units','normalized',...
-        'Position',[0.72 0.66 0.24 0.16],'Tag','btn_quantize','FontSize',10,'Value',0, 'TooltipString','Toggle to overlay quantized waveform on preview');
+        'Position',[0.03 0.02 0.92 0.12],'HorizontalAlignment','left','FontSize',10);
+    % Note: Quantize toggle moved to bottom action buttons for consistent placement
 end
 
 
@@ -266,11 +291,13 @@ function generatePreview(~,~)
             truncated = true;
         end
         cla(hAx);
+        % plot original preview and tag it so toggleQuantize can find it
         if isfield(info,'type') && strcmpi(info.type,'PRBS')
-            stairs(hAx, t, y, '-b');
+            hOrig = stairs(hAx, t, y, '-b');
         else
-            plot(hAx, t, y, '-b');
+            hOrig = plot(hAx, t, y, '-b');
         end
+        try set(hOrig,'Tag','orig_preview'); catch; end
         grid(hAx,'on');
         title(hAx, sprintf('%s (preview)', info.type));
         xlabel(hAx,'Time (s)'); ylabel(hAx,'Amplitude');
@@ -281,7 +308,8 @@ function generatePreview(~,~)
             end
             % --- Overlay quantized result only if user enabled the Quantize toggle ---
             try
-                hBtn = findobj(hEncodePanel,'Tag','btn_quantize');
+                % Quantize toggle was moved to the bottom of the main figure
+                hBtn = findobj(hFig,'Tag','btn_quantize');
                 doQuant = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
             catch
                 doQuant = false;
@@ -295,21 +323,42 @@ function generatePreview(~,~)
                     yq = reconstructFromInts(y, double(intQ), encType, N, frac);
                     hold(hAx,'on');
                     % draw quantized waveform (use red, dashed, thinner)
+                    % remove any existing quantized overlay then draw new one (tagged)
+                    oldQ = findobj(hAx,'Tag','quant_preview'); delete(oldQ);
                     if isfield(info,'type') && strcmpi(info.type,'PRBS')
-                        stairs(hAx, t, yq, '--r','LineWidth',1.0);
+                        hQ = stairs(hAx, t, yq, '--r','LineWidth',1.0); %#ok<NASGU>
                     else
-                        plot(hAx, t, yq, '--r','LineWidth',1.0);
+                        hQ = plot(hAx, t, yq, '--r','LineWidth',1.0); %#ok<NASGU>
                     end
+                    try set(hQ,'Tag','quant_preview'); catch; end
                     legend(hAx,{'Original','Quantized'},'Location','best');
                     hold(hAx,'off');
                 catch
                     % don't let overlay errors break preview
                 end
             end
-        % 预览后清空导入数据
-        importedData.intVals = [];
-        importedData.fileName = '';
-        importedData.Nbits = [];
+        % Save generated waveform into shared importedData so import/generate share state
+        try
+            importedData.floatY = y;
+            importedData.t = t;
+            % infer and store sample rate when possible
+            if numel(t)>1
+                importedData.fs = 1/(t(2)-t(1));
+            else
+                importedData.fs = [];
+            end
+            importedData.info = info;
+            importedData.intVals = [];
+            importedData.fileName = 'generated';
+            importedData.Nbits = [];
+            % record last-used encoding UI settings optionally
+            try
+                [etmp, Ntmp, frtmp] = getEncodingParams();
+                importedData.lastEncode = struct('encodeType',etmp,'N',Ntmp,'frac',frtmp);
+            catch
+            end
+        catch
+        end
     catch ME
         set(hStatus,'String',['Error: ' ME.message]);
     end  
@@ -394,6 +443,8 @@ function [params, cancelled] = askImportParams(meta, ext, source)
     figw = 420; figh = 360; fx = dpos(1)+dpos(3)/2-figw/2; fy = dpos(2)+dpos(4)/2-figh/2;
     hDlg = figure('Name','Import Parameters','NumberTitle','off','MenuBar','none','ToolBar','none', ...
         'Position',[fx fy figw figh],'WindowStyle','modal','Resize','off');
+    % ensure dialog controls use consistent font size
+    set(hDlg, 'DefaultUicontrolFontSize', 10, 'DefaultUipanelFontSize', 10);
 
     ypos = 1-40/360; gap = 36/360;
     uicontrol('Parent',hDlg,'Style','text','String','Numeric format:','HorizontalAlignment','left','Position',[10 figh-40 160 20]);
@@ -810,69 +861,12 @@ function importCallback(~,~)
 end
 
 function exportCallback(~,~)
-    % If imported data exists, ask whether to export it or generate new
-    useImported = false;
-    if ~isempty(importedData.intVals)
-        choice = questdlg('Use imported data for export?','Export','Yes','No','Yes');
-        if strcmp(choice,'Yes')
-            useImported = true;
-        end
-    end
-    if useImported
-        intVals = importedData.intVals;
-        % try to infer Nbits if missing
-        if isempty(importedData.Nbits)
-            maxv = max(double(intVals));
-            if maxv<=0
-                N = 16;
-            else
-                N = max(1, ceil(log2(double(maxv)+1)));
-            end
-        else
-            N = importedData.Nbits;
-        end
-        % prepare fullpath via uiputfile
-        filters = {'*.hex;*.mem;*.bin;*.coe;*.mif;*.csv','All supported files (*.hex,*.mem,*.bin,*.coe,*.mif,*.csv)';
-                   '*.hex','HEX (*.hex)';'*.mem','MEM (*.mem)';'*.bin','BIN (*.bin)';'*.coe','COE (*.coe)';'*.mif','MIF (*.mif)';'*.csv','CSV (*.csv)'};
-        [fileName, filePath, filterIdx] = uiputfile(filters,'Save imported data as');
-        if isequal(fileName,0)
-            set(hStatus,'String','Export cancelled'); return;
-        end
-        fullpath = fullfile(filePath,fileName);
-        [~,~,ext] = fileparts(fileName); ext = lower(ext);
-        if isempty(ext)
-            ext = '.hex';
-        end
-        try
-            writeOutputFile(fullpath, intVals, N, ext);
-            set(hStatus,'String',['Exported imported data to ' fullpath]);
-        catch ME
-            set(hStatus,'String',['Write error: ' ME.message]);
-        end
-        return;
-    end
-    % Get encoding params from UI (use two popups and fields)
-    try
-        [encType, N, frac] = getEncodingParams();
-    catch
-        set(hStatus,'String','Error reading encoding params'); return;
-    end
-
-    % 先生成信号
-    try
-        [y, t, info] = generateSignalFromUI();
-    catch ME
-        set(hStatus,'String',['Error generating signal: ' ME.message]);
-        return;
-    end
-    % Convert to integers according to encoding
-    try
-        intVals = encodeSignalToIntegers(y, encType, N, frac);
-    catch ME
-        set(hStatus,'String',['Encoding error: ' ME.message]); return;
-    end
-    % (signal already generated above)
-    % Choose filename (support more formats)
+    % 判断 Quantize 按钮状态
+    hBtn = findobj(hFig,'Tag','btn_quantize');
+    quantOn = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
+    % 导出浮点（原始）还是量化整数
+    exportFloat = ~quantOn; % Quantize=ON 导出量化数据，OFF 导出原始数据
+    % 选择文件名和格式
     filters = {'*.hex;*.mem;*.bin;*.coe;*.mif;*.csv','All supported files (*.hex,*.mem,*.bin,*.coe,*.mif,*.csv)';
                '*.hex','HEX (*.hex)';'*.mem','MEM (*.mem)';'*.bin','BIN (*.bin)';'*.coe','COE (*.coe)';'*.mif','MIF (*.mif)';'*.csv','CSV (*.csv)'};
     [fileName, filePath, filterIdx] = uiputfile(filters,'Save as');
@@ -880,23 +874,47 @@ function exportCallback(~,~)
         set(hStatus,'String','Export cancelled'); return;
     end
     fullpath = fullfile(filePath,fileName);
-    % Determine export format from extension (or selected filter)
-    [~,~,ext] = fileparts(fileName);
-    ext = lower(ext);
+    [~,~,ext] = fileparts(fileName); ext = lower(ext);
     if isempty(ext) && ~isempty(filterIdx)
-        % map filter index to extension when user picks a filter but omits extension
-        extlist = {'.hex','.hex','.mem','.bin','.coe','.mif','.csv'}; % first map is for combined filter
+        extlist = {'.hex','.hex','.mem','.bin','.coe','.mif','.csv'};
         if filterIdx>=1 && filterIdx<=numel(extlist)
             ext = extlist{filterIdx};
         else
             ext = '.hex';
         end
     end
-    try
-        writeOutputFile(fullpath, intVals, N, ext);
-        set(hStatus,'String',['Exported to ' fullpath]);
-    catch ME
-        set(hStatus,'String',['Write error: ' ME.message]);
+    if exportFloat
+        % 导出原始浮点数据（CSV格式，或其它格式只导出浮点）
+        if isempty(importedData.floatY)
+            set(hStatus,'String','No original data to export.'); return;
+        end
+        try
+            fid = fopen(fullpath,'w');
+            if fid<0, error('Cannot open file for writing'); end
+            for k=1:numel(importedData.floatY)
+                fprintf(fid,'%.10g\n',importedData.floatY(k));
+            end
+            fclose(fid);
+            set(hStatus,'String',['Exported original (float) data to ' fullpath]);
+        catch ME
+            set(hStatus,'String',['Write error: ' ME.message]);
+        end
+    else
+        % 导出量化整数（按当前编码参数编码 floatY 或用 intVals）
+        try
+            [encType, N, frac] = getEncodingParams();
+            if ~isempty(importedData.floatY)
+                intVals = encodeSignalToIntegers(importedData.floatY, encType, N, frac);
+            elseif ~isempty(importedData.intVals)
+                intVals = importedData.intVals;
+            else
+                set(hStatus,'String','No quantized data to export.'); return;
+            end
+            writeOutputFile(fullpath, intVals, N, ext);
+            set(hStatus,'String',['Exported quantized (integer) data to ' fullpath]);
+        catch ME
+            set(hStatus,'String',['Write error: ' ME.message]);
+        end
     end
 end
 
@@ -941,39 +959,45 @@ function importFromWorkspaceCallback(~,~)
         importedData.floatY = y;
         importedData.intVals = [];
         importedData.fileName = ['workspace:' vname];
+        importedData.fs = 48000; % assume default sample rate if not known
+        importedData.t = (0:numel(y)-1)/importedData.fs;
+        importedData.info = struct('type','Imported (workspace)');
         cla(hAx);
-        plot(hAx, y);
+        plot(hAx, importedData.t, y);
         title(hAx,['Imported (float): workspace:' vname]);
         set(hStatus,'String',['Imported float variable ''' vname ''' from workspace (' num2str(numel(y)) ' samples)']);
     end
 end
 
 function exportToWorkspaceCallback(~,~)
-    % Export either imported integer data (if present) or generated/encoded signal to base workspace
+    % 判断 Quantize 按钮状态
+    hBtn = findobj(hFig,'Tag','btn_quantize');
+    quantOn = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
+    exportFloat = ~quantOn;
     prompt = {'Variable name in base workspace:'};
     def = {'exported_signal'};
     answ = inputdlg(prompt,'Export to Workspace',[1 50],def);
     if isempty(answ), set(hStatus,'String','Export to workspace cancelled'); return; end
     vname = answ{1};
     try
-        if ~isempty(importedData.intVals)
-            assignin('base', vname, importedData.intVals);
-            set(hStatus,'String',['Exported imported integer data to workspace variable ''' vname '''']);
-        elseif isfield(importedData,'floatY') && ~isempty(importedData.floatY)
-            assignin('base', vname, importedData.floatY);
-            set(hStatus,'String',['Exported imported float data to workspace variable ''' vname '''']);
-        else
-            % generate signal and encode according to current UI settings
-            [y, ~, ~] = generateSignalFromUI();
-            % determine encoding params (use helper)
-            try
-                [encType, N, frac] = getEncodingParams();
-            catch
-                set(hStatus,'String','Error reading encoding params'); return;
+        if exportFloat
+            if ~isempty(importedData.floatY)
+                assignin('base', vname, importedData.floatY);
+                set(hStatus,'String',['Exported original (float) data to workspace variable ''' vname '''']);
+            else
+                set(hStatus,'String','No original data to export.');
             end
-            intVals = encodeSignalToIntegers(y, encType, N, frac);
+        else
+            [encType, N, frac] = getEncodingParams();
+            if ~isempty(importedData.floatY)
+                intVals = encodeSignalToIntegers(importedData.floatY, encType, N, frac);
+            elseif ~isempty(importedData.intVals)
+                intVals = importedData.intVals;
+            else
+                set(hStatus,'String','No quantized data to export.'); return;
+            end
             assignin('base', vname, intVals);
-            set(hStatus,'String',['Exported generated signal (encoded) to workspace variable ''' vname '''']);
+            set(hStatus,'String',['Exported quantized (integer) data to workspace variable ''' vname '''']);
         end
     catch ME
         set(hStatus,'String',['Export to workspace failed: ' ME.message]);
@@ -1126,54 +1150,6 @@ function [y, t, info] = generateSignalFromUI()
             info.type = 'PRBS';
         otherwise
             error('Unknown signal type');
-    end
-end
-
-function out = lfsr_prbs(order, seed, Nout, taps)
-    % Robust Fibonacci-style LFSR (MSB-first) producing 0/1 sequence of length Nout
-    % taps should be specified as polynomial degrees, e.g. [13 11] for x^13 + x^11 + 1
-    if nargin<4, taps = []; end
-    if seed == 0
-        seed = 1; % avoid all-zero state
-    end
-    % sanitize taps: keep integers within [1,order]
-    taps = unique(floor(taps));
-    taps = taps(taps>=1 & taps<=order);
-    if isempty(taps)
-        % default primitive-ish taps for small orders (fallback)
-        taps = max(1, order-1);
-    end
-
-    % Initialize state as MSB-first vector: state(1)=bit for x^order, state(order)=LSB
-    state = zeros(1, order);
-    for i = 1:order
-        % bitget with position i extracts bit at weight 2^(i-1) (LSB=1)
-        % we want state(1)=MSB -> bit position = order - 1 + 1 = order
-        state(i) = bitget(uint32(seed), order - i + 1);
-    end
-    % ensure not all zeros
-    if all(state==0)
-        state(end) = 1;
-    end
-
-    out = zeros(1, Nout);
-    % map polynomial degrees to state indices (MSB-first)
-    taps_idx = order - taps + 1; % degree t -> index in state
-    taps_idx = taps_idx(taps_idx>=1 & taps_idx<=order);
-
-    for k = 1:Nout
-        % output bit: take LSB (degree 1) OR take MSB depending on convention
-        % We'll output the LSB (state(end)) to get typical PRBS ordering used elsewhere
-        out(k) = state(end);
-
-        % compute feedback as XOR of the tapped bits (using the provided degrees)
-        fb = 0;
-        for tt = taps_idx
-            fb = bitxor(fb, state(tt));
-        end
-
-        % shift right by one position, insert feedback at MSB (state(1))
-        state = [fb, state(1:end-1)];
     end
 end
 
@@ -1336,20 +1312,115 @@ function handleImportedInts(intVals, sourceName, params)
                     yRestored = (yRestored / maxPos) * importedData.peak;
                 end
         end
+        % store reconstructed waveform into shared importedData (with time vector)
+        try
+            importedData.floatY = yRestored;
+            if isfield(importedData,'fs') && ~isempty(importedData.fs)
+                importedData.t = (0:numel(yRestored)-1)/importedData.fs;
+            else
+                importedData.t = (0:numel(yRestored)-1);
+            end
+            importedData.info = struct('type','Imported');
+        catch
+        end
+        % prefer plotting against time vector if available and matching length
+        useTime = isfield(importedData,'t') && ~isempty(importedData.t) && numel(importedData.t)==numel(yRestored);
         if numel(unique(yRestored))<=2
-            stairs(hAx, yRestored);
+            if useTime
+                stairs(hAx, importedData.t, yRestored);
+            else
+                stairs(hAx, yRestored);
+            end
         else
-            plot(hAx, yRestored);
+            if useTime
+                plot(hAx, importedData.t, yRestored);
+            else
+                plot(hAx, yRestored);
+            end
         end
     catch
         % fallback: plot raw integer values
+        try
+            importedData.floatY = double(importedData.intVals);
+            importedData.t = (0:numel(importedData.intVals)-1);
+            importedData.info = struct('type','Imported (raw)');
+        catch
+        end
+        % fallback plotting for raw ints also prefers time vector
+        useTime2 = isfield(importedData,'t') && ~isempty(importedData.t) && numel(importedData.t)==numel(importedData.intVals);
         if numel(unique(importedData.intVals))<=2
-            stairs(hAx,double(importedData.intVals));
+            if useTime2
+                stairs(hAx, importedData.t, double(importedData.intVals));
+            else
+                stairs(hAx, double(importedData.intVals));
+            end
         else
-            plot(hAx,double(importedData.intVals));
+            if useTime2
+                plot(hAx, importedData.t, double(importedData.intVals));
+            else
+                plot(hAx, double(importedData.intVals));
+            end
         end
     end
     title(hAx,['Imported: ' sourceName]);
 end
+% Nested callback: Show or hide the quantized overlay without regenerating the full signal when possible
+function toggleQuantize(src,~)
+    try
+        if nargin>=1 && ishandle(src)
+            val = get(src,'Value');
+        else
+            hBtn = findobj(hFig,'Tag','btn_quantize');
+            val = ~isempty(hBtn) && ishandle(hBtn) && get(hBtn,'Value');
+        end
+    catch
+        val = false;
+    end
+
+    if val
+        % try to find existing original preview data (use hAx from parent scope)
+        hOrig = findobj(hAx,'Tag','orig_preview');
+        if isempty(hOrig)
+            % if no plotted original, try to use stored importedData.floatY
+            if isfield(importedData,'floatY') && ~isempty(importedData.floatY)
+                x = importedData.t;
+                y = importedData.floatY;
+            else
+                % nothing to overlay yet -- generate preview which will draw overlay when toggle is on
+                try
+                    generatePreview();
+                catch
+                end
+                return;
+            end
+        else
+            try
+                x = get(hOrig,'XData'); y = get(hOrig,'YData');
+            catch
+                x = []; y = [];
+            end
+        end
+        try
+            [encType, N, frac] = getEncodingParams();
+            intQ = encodeSignalToIntegers(y, encType, N, frac);
+            yq = reconstructFromInts(y, double(intQ), encType, N, frac);
+            oldQ = findobj(hAx,'Tag','quant_preview'); delete(oldQ);
+            hold(hAx,'on');
+            hQ = plot(hAx, x, yq, '--r', 'LineWidth', 1.0);
+            try set(hQ,'Tag','quant_preview'); catch; end
+            legend(hAx,{'Original','Quantized'},'Location','best');
+            hold(hAx,'off');
+        catch
+            % ignore overlay errors
+        end
+    else
+        % remove overlay
+        try
+            oldQ = findobj(hAx,'Tag','quant_preview'); delete(oldQ);
+        catch
+        end
+    end
+end
+
 % Close main function
 end

@@ -4,6 +4,8 @@
 
 一个用于生成、导出、导入 FPGA/数字信号测试数据的工具集合（包含 Python GUI 与 MATLAB 脚本）。
 
+<img src="assets\gitlogo.png" alt="gitlogo" width = 60% />
+
 ## 工程结构与主要功能
 
 - **信号生成与编码**：支持 Sine（正弦）、Square（方波）、PRBS（伪随机序列）等常用测试信号，参数可自定义。

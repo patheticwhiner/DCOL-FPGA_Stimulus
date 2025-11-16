@@ -1,6 +1,20 @@
-clear; close all; clc;
-% 直接运行脚本，导入并转换 mic_hex 列为浮点数
-filename = 'mic_data_20251115_221250.csv';
+function mic_data = readFromCSV(filename)
+% readFromCSV - 从 CSV 文件读取第二列三字节 Q1.23 hex 字段并转换为浮点
+%
+% SYNTAX
+%   mic_data = readFromCSV(filename)
+%   mic_data = readFromCSV()  % 使用默认文件名
+%
+% INPUT
+%   filename - 可选，CSV 文件路径（字符串）。若未提供，使用默认值 'mic_data_20251115_205337.csv'
+%
+% OUTPUT
+%   mic_data - double 向量，Q1.23 转换后的浮点样本（NaN 表示解析失败或缺失）
+
+if nargin < 1 || isempty(filename)
+    fprintf('未提供文件名\n');
+end
+
 % 为避免 readtable 自动类型转换或编码错误，直接以原始单元格方式读取文件
 % readcell 会保留原始单元格文本（包括前导 '0x' 等），更适合后续逐项解析
 try
@@ -100,7 +114,7 @@ for i = 1:n
     mic_float(i) = signed / 2^23;
 end
 
-% 将结果保存到常用变量名 mic_data，便于后续脚本使用
+% 将结果保存到常用变量名 mic_data，便于返回和后续脚本使用
 mic_data = mic_float;
 
 % 统计信息（忽略 NaN）
@@ -127,5 +141,8 @@ else
 end
 
 % 绘图（对 NaN 自动省略）
-plot(mic_data)
+figure('Name','mic_data (Q1.23 -> float)');
+plot(mic_data);
 title('mic\_data (Q1.23 -> float)')
+
+end
