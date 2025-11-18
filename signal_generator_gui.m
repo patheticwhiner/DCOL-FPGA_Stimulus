@@ -9,7 +9,7 @@ function signal_generator_gui()
 % - Signal-specific parameters appear dynamically
 % - Choose fixed-point encoding: Unsigned, Signed(2's), Q-format
 % - Export to .hex, .mem (text hex per line), or .bin (raw bytes)
-
+addpath('utils');
 % Create main figure
 hFig = figure('Name','Signal Generator','NumberTitle','off', 'MenuBar','none', ...
     'ToolBar','none','Position',[300 200 1200 800]);
@@ -17,48 +17,103 @@ hFig = figure('Name','Signal Generator','NumberTitle','off', 'MenuBar','none', .
 % Set default UI font sizes for controls/panels created under this figure
 set(hFig, 'DefaultUicontrolFontSize', 10, 'DefaultUipanelFontSize', 10);
 
+% Create tab group: first tab shows About/README text, second tab holds the generator UI
+hTabGroup = uitabgroup('Parent',hFig,'Units','normalized','Position',[0 0 1 1]);
+hTab1 = uitab('Parent',hTabGroup,'Title','About');
+hTab2 = uitab('Parent',hTabGroup,'Title','Generator');
+% Third tab: embed the FX-LMS GUI here by calling fxlms_gui with the tab as parent
+hTab3 = uitab('Parent',hTabGroup,'Title','FXLMS');
+try
+    % attempt to build the fxlms GUI inside the tab
+    fxlms_gui(hTab3);
+catch
+    % if embedding fails (older fxlms_gui version), provide a fallback button to open it in a separate window
+    uicontrol('Parent',hTab3,'Style','text','Units','normalized','Position',[0.05 0.9 0.9 0.05],'String','Embedded FX-LMS not available. Click below to open standalone GUI.','HorizontalAlignment','left');
+    uicontrol('Parent',hTab3,'Style','pushbutton','Units','normalized','Position',[0.4 0.45 0.2 0.08],'String','Open FX-LMS GUI','Callback',@(s,e) fxlms_gui());
+end
+
+% Try to show an image (assets/gitlogo.png) on the About tab if present
+try
+    imgPath = fullfile(fileparts(mfilename('fullpath')),'assets','gitlogo.png');
+    if exist(imgPath,'file')
+        % create a small axes on the right side of the About tab and display the image
+        axImg = axes('Parent',hTab1,'Units','normalized','Position',[0.02 0.4 0.96 0.55]);
+        try
+            im = imread(imgPath);
+            % use imshow if available, otherwise fall back to image()
+            if exist('imshow','file')==2
+                imshow(im,'Parent',axImg);
+            else
+                image(axImg,im);
+                axis(axImg,'image');
+            end
+            axis(axImg,'off');
+        catch
+            % ignore image display errors
+            if ishandle(axImg), delete(axImg); end
+        end
+    end
+catch
+    % ignore any issues locating or drawing the image
+end
+% Place a read-only multi-line edit on the About tab with a short README excerpt
+readmeText = [ ...
+    "Signal Generator GUI for MATLAB\r\n\r\n", ...
+    "This GUI generates common test signals (Sine, Square, PRBS, White Noise),\r\n", ...
+    "allows preview and fixed-point quantization, and exports samples to\r\n", ...
+    "FPGA/embedded-friendly formats (.hex, .mem, .bin, .csv).\r\n\r\n", ...
+    "Usage: run `signal_generator_gui` in MATLAB, choose a signal type, set\r\n", ...
+    "parameters and encoding, then Generate & Preview and Export as needed.\r\n\r\n", ...
+    "Import: supports .hex/.mem/.bin/.csv and workspace variables. Companion\r\n", ...
+    "meta JSON (e.g. file.meta.json) is auto-detected when present.\r\n\r\n", ...
+    "See README_GUI_ForMat.md in the project for full details." ];
+% place text on left portion of About tab leaving room for an image on the right
+uicontrol('Parent',hTab1,'Style','edit','String',readmeText,'Units','normalized',...
+    'Position',[0.12 0.12 0.80 0.2],'Max',2,'Min',0,'Enable','inactive','HorizontalAlignment','left','FontSize',10);
+
+
 % Layout: top controls, left parameters panel, right encoding panel, big axes below
 % Top: Signal & Fixed-format selectors
-uicontrol('Parent',hFig,'Style','text','String','Signal:','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','text','String','Signal:','Units','normalized',...
     'Position',[0.02 0.94 0.12 0.04],'HorizontalAlignment','left','FontSize',10);
-hSignal = uicontrol('Parent',hFig,'Style','popupmenu','String',{'Sine','Square','White Noise','PRBS'}, ...
+hSignal = uicontrol('Parent',hTab2,'Style','popupmenu','String',{'Sine','Square','White Noise','PRBS'}, ...
     'Units','normalized','Position',[0.14 0.94 0.28 0.04],'Callback',@signalChanged,'FontSize',10);
 
-uicontrol('Parent',hFig,'Style','text','String','Sign:','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','text','String','Sign:','Units','normalized',...
     'Position',[0.46 0.94 0.04 0.04],'HorizontalAlignment','left','FontSize',10);
-hSignType = uicontrol('Parent',hFig,'Style','popupmenu', ...
+hSignType = uicontrol('Parent',hTab2,'Style','popupmenu', ...
     'String',{'Unsigned','Signed (Two''s complement)'},...
     'Units','normalized','Position',[0.50 0.94 0.18 0.04],'Callback',@encodeChanged,'FontSize',10,'Value',2);
-uicontrol('Parent',hFig,'Style','text','String','Numeric format:','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','text','String','Numeric format:','Units','normalized',...
     'Position',[0.70 0.94 0.10 0.04],'HorizontalAlignment','left','FontSize',10);
-hNumType = uicontrol('Parent',hFig,'Style','popupmenu', ...
+hNumType = uicontrol('Parent',hTab2,'Style','popupmenu', ...
     'String',{'Integer (N bits)','Q format (N bits, frac)'},...
     'Units','normalized','Position',[0.80 0.94 0.18 0.04],'Callback',@encodeChanged,'FontSize',10,'Value',2);
 
 % Left parameters panel (large)
-hParamPanel = uipanel('Parent',hFig,'Title','Parameters','Units','normalized',...
+hParamPanel = uipanel('Parent',hTab2,'Title','Parameters','Units','normalized',...
     'Position',[0.02 0.55 0.46 0.37],'FontSize',10);
 
 % Right encoding panel to show encoding params nicely 
-hEncodePanel = uipanel('Parent',hFig,'Title','Encoding Params','Units','normalized',...
+hEncodePanel = uipanel('Parent',hTab2,'Title','Encoding Params','Units','normalized',...
     'Position',[0.50 0.62 0.48 0.3],'FontSize',10);
 
 % Interaction controls (Zoom / Pan / Data Cursor / Reset / Save)
-btnZoom = uicontrol('Parent',hFig,'Style','togglebutton','String','Zoom','Units','normalized',...
+btnZoom = uicontrol('Parent',hTab2,'Style','togglebutton','String','Zoom','Units','normalized',...
     'Position',[0.50 0.565 0.055 0.035],'Callback',@toggleZoom,'FontSize',10);
-btnPan = uicontrol('Parent',hFig,'Style','togglebutton','String','Pan','Units','normalized',...
+btnPan = uicontrol('Parent',hTab2,'Style','togglebutton','String','Pan','Units','normalized',...
     'Position',[0.56 0.565 0.055 0.035],'Callback',@togglePan,'FontSize',10);
-btnData = uicontrol('Parent',hFig,'Style','togglebutton','String','Data Cursor','Units','normalized',...
+btnData = uicontrol('Parent',hTab2,'Style','togglebutton','String','Data Cursor','Units','normalized',...
     'Position',[0.62 0.565 0.085 0.035],'Callback',@toggleDataCursor,'FontSize',10);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Reset View','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Reset View','Units','normalized',...
     'Position',[0.71 0.565 0.07 0.035],'Callback',@resetView,'FontSize',9);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Save Fig','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Save Fig','Units','normalized',...
     'Position',[0.79 0.565 0.09 0.035],'Callback',@saveFigure,'FontSize',9);
 
 % (Export Format moved to bottom next to action buttons)
 
 % Big axes below
-hAx = axes('Parent',hFig,'Units','normalized','Position',[0.05 0.14 0.90 0.36]);
+hAx = axes('Parent',hTab2,'Units','normalized','Position',[0.05 0.14 0.90 0.36]);
 % tag the main axes so callbacks outside nested scope can find it if needed
 set(hAx,'Tag','main_axes');
 title(hAx,'Preview');
@@ -68,24 +123,24 @@ ylabel(hAx,'Amplitude');
 % hStatus = uicontrol('Parent',hFig,'Style','text','String','Ready','Units','normalized',...
 %     'Position',[0.05 0.10 0.90 0.03],'HorizontalAlignment','left');
 % Status bar
-hStatus = uicontrol('Parent',hFig,'Style','text','String','Ready','Units','normalized',...
+hStatus = uicontrol('Parent',hTab2,'Style','text','String','Ready','Units','normalized',...
     'Position',[0.04 0.07 0.96 0.02],'HorizontalAlignment','left','FontSize',10);
 
 % Bottom action buttons - reflowed with uniform margins and gaps
 % Layout parameters: left/right margin = 0.04, button width = 0.12, gap = 0.04
 btn_w = 0.12; btn_gap = 0.04; left_margin = 0.04; y_pos = 0.02; btn_h = 0.04;
-uicontrol('Parent',hFig,'Style','togglebutton','String','Quantize','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','togglebutton','String','Quantize','Units','normalized',...
     'Position',[left_margin, y_pos, btn_w, btn_h],'Tag','btn_quantize','FontSize',10,'Value',0, 'TooltipString','Toggle to overlay quantized waveform on preview','Callback',@toggleQuantize);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Generate & Preview','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Generate & Preview','Units','normalized',...
     'Position',[left_margin + (btn_w+btn_gap)*1, y_pos, btn_w, btn_h],'Callback',@generatePreview,'FontSize',10);
 % Import button (between Generate and Export)
-uicontrol('Parent',hFig,'Style','pushbutton','String','Import...','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Import...','Units','normalized',...
     'Position',[left_margin + (btn_w+btn_gap)*2, y_pos, btn_w, btn_h],'Callback',@importCallback,'FontSize',10);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Export...','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Export...','Units','normalized',...
     'Position',[left_margin + (btn_w+btn_gap)*3, y_pos, btn_w, btn_h],'Callback',@exportCallback,'FontSize',10);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Import from Workspace','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Import from Workspace','Units','normalized',...
     'Position',[left_margin + (btn_w+btn_gap)*4, y_pos, btn_w, btn_h],'Callback',@importFromWorkspaceCallback,'FontSize',10);
-uicontrol('Parent',hFig,'Style','pushbutton','String','Export to Workspace','Units','normalized',...
+uicontrol('Parent',hTab2,'Style','pushbutton','String','Export to Workspace','Units','normalized',...
     'Position',[left_margin + (btn_w+btn_gap)*5, y_pos, btn_w, btn_h],'Callback',@exportToWorkspaceCallback,'FontSize',10);
 
 % Initialize default parameter controls
@@ -701,6 +756,50 @@ function v = getParamValue(labelStr, default)
     end
 end
 
+function s = getParamRaw(labelStr, default)
+    % Return the raw string from the parameter edit control (or default string)
+    tag = labelToTag(labelStr);
+    h = findobj(hParamPanel,'Tag',tag);
+    if isempty(h)
+        s = num2str(default);
+    else
+        s = get(h,'String');
+    end
+end
+
+function arr = parseNumericArray(strOrDefault, default)
+    % Parse a user-entered string which may contain a scalar or MATLAB array
+    % examples: '1', '[1 0.5]', '1,2,3', ' [ 1; 2 ]'
+    try
+        if isempty(strOrDefault)
+            arr = default;
+            return;
+        end
+        if isnumeric(strOrDefault)
+            arr = strOrDefault;
+            return;
+        end
+        s = strtrim(strOrDefault);
+        % Replace commas with spaces so str2num handles both
+        s2 = regexprep(s,',',' ');
+        % Try str2num which accepts array notation
+        arrTmp = str2num(s2); %#ok<ST2NM>
+        if isempty(arrTmp)
+            % fallback to single number
+            v = str2double(s);
+            if isnan(v)
+                arr = default;
+            else
+                arr = v;
+            end
+        else
+            arr = arrTmp(:)'; % return row vector
+        end
+    catch
+        arr = default;
+    end
+end
+
 % avoid recursive updates
 syncing = false;
 function syncTimeSamples(src,~)
@@ -1104,19 +1203,48 @@ function [y, t, info] = generateSignalFromUI()
     typeLower = lower(type);
     switch typeLower
         case 'sine'
-            A = getParamValue('Amplitude',1);
-            f = getParamValue('Frequency (Hz)',50);
-            ph = getParamValue('Phase (deg)',0);
+            % Allow amplitude/frequency/phase to be scalars or arrays. If arrays
+            % are provided (e.g. [1 0.5] for amplitude), multiple sine components
+            % are generated and summed.
+            A_raw = getParamRaw('Amplitude','1');
+            f_raw = getParamRaw('Frequency (Hz)','50');
+            ph_raw = getParamRaw('Phase (deg)','0');
             % sample rate may be tagged as 'srate' or 'prbs_fs'
             hfs = findobj(hParamPanel,'Tag','srate'); if isempty(hfs), hfs = findobj(hParamPanel,'Tag','prbs_fs'); end
             if isempty(hfs), fs = 48000; else fs = str2double(get(hfs,'String')); end
             duration = getParamValue('Duration (s)',10);
             Ns = max(1, round(duration * fs));
             t = (0:Ns-1)/fs;
-            y = A * sin(2*pi*f*t + deg2rad(ph));
-            % apply offset if provided
-            off = getParamValue('Offset',0);
-            y = y + off;
+            % parse possible arrays
+            A_arr = parseNumericArray(A_raw, 1);
+            f_arr = parseNumericArray(f_raw, 50);
+            ph_arr = parseNumericArray(ph_raw, 0);
+            % ensure row vectors
+            if isscalar(A_arr), A_arr = A_arr(:)'; end
+            if isscalar(f_arr), f_arr = f_arr(:)'; end
+            if isscalar(ph_arr), ph_arr = ph_arr(:)'; end
+            nComp = max([numel(A_arr), numel(f_arr), numel(ph_arr)]);
+            if nComp <= 0, nComp = 1; end
+            % broadcast scalars to match components
+            if numel(A_arr) == 1, A_arr = repmat(A_arr,1,nComp); end
+            if numel(f_arr) == 1, f_arr = repmat(f_arr,1,nComp); end
+            if numel(ph_arr) == 1, ph_arr = repmat(ph_arr,1,nComp); end
+            % Sum multiple sine components
+            y = zeros(1, Ns);
+            for k = 1:nComp
+                y = y + A_arr(k) .* sin(2*pi*f_arr(k).*t + deg2rad(ph_arr(k)));
+            end
+            % apply offset if provided (offset may be scalar or a time-vector)
+            off_raw = getParamRaw('Offset','0');
+            off_arr = parseNumericArray(off_raw, 0);
+            if numel(off_arr) == 1
+                y = y + off_arr;
+            elseif numel(off_arr) == Ns
+                y = y + off_arr(:)';
+            else
+                % If offset is a short vector, try to broadcast first element
+                y = y + off_arr(1);
+            end
             info.type = 'Sine';
         case 'square'
             A = getParamValue('Amplitude',1);
