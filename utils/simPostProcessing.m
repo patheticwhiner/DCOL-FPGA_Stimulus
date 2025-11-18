@@ -13,13 +13,13 @@ plot(f,20*log10(abs(H))); grid on;
 subplot(2,1,2);
 plot(f,angle(H)); grid on;
 
-%% Ô¤²â¹Ì¶¨ÂË²¨Æ÷½µÔëĞ§¹û
+%% é¢„æµ‹å›ºå®šæ»¤æ³¢å™¨é™å™ªæ•ˆæœ
 in = out.in.signals.values(:);
 t = (1:length(in))/fs;
 out_predict = filter(P,1,in) - filter(conv(w,S),1,in);
 
-fprintf('ÕıÔÚÆô¶¯ Signal Analyzer ²¢µ¼ÈëĞÅºÅ...\n');
+fprintf('æ­£åœ¨å¯åŠ¨ Signal Analyzer å¹¶å¯¼å…¥ä¿¡å·...\n');
 signalAnalyzer(in, out_predict, ...
     'SampleRate', fs);
-fprintf('Signal Analyzer ÒÑ³É¹¦Æô¶¯¡£\n');
-fprintf('ÄúÏÖÔÚ¿ÉÒÔÔÚAPPÖĞ²é¿´Ê±Óò²¨ĞÎºÍ¹¦ÂÊÆ×¡£\n');
+fprintf('Signal Analyzer å·²æˆåŠŸå¯åŠ¨ã€‚\n');
+fprintf('æ‚¨ç°åœ¨å¯ä»¥åœ¨APPä¸­æŸ¥çœ‹æ—¶åŸŸæ³¢å½¢å’ŒåŠŸç‡è°±ã€‚\n');

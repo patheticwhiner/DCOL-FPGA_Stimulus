@@ -1,10 +1,9 @@
-
 clear; close all; clc;
 
 %% ======================== 数据读取与预处理 ========================
 % 读取输入信号（激励：白噪声）和输出信号（测量：麦克风数据）
-x = readFromBIN('data/whitenoise200-2kHz.bin')'; % 输入信号，Q1.23格式，已转浮点
-y = readFromCSV('data/mic_data_20251117_213813.csv'); % 输出信号，浮点
+x = readFromBIN('../data/whitenoise200-2kHz.bin')'; % 输入信号，Q1.23格式，已转浮点
+y = readFromCSV('../data/mic_data_20251117_213813.csv'); % 输出信号，浮点
 
 % 剔除 NaN，保证数据有效性
 x = x(~isnan(x));
@@ -251,6 +250,6 @@ current_time = datetime('now');
 formatted_time = datestr(current_time, 'yyyy-mm-dd HH:MM:SS');
 formatted_time = strrep(formatted_time, ':', '');
 formatted_time = strrep(formatted_time, ' ', '_');
-filename = ['data\LMS_SYSID', formatted_time];
+filename = ['..\data\LMS_SYSID', formatted_time];
 s = struct('w', w, 'fs', fs, 'mu', mu, 'x', data_x, 'y', data_y); % 保存主要参数和信号
 save(filename, 's');
