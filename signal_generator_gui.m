@@ -56,6 +56,7 @@ try
 catch
     % ignore any issues locating or drawing the image
 end
+
 % Place a read-only multi-line edit on the About tab with a short README excerpt
 readmeText = [ ...
     "Signal Generator GUI for MATLAB\r\n\r\n", ...

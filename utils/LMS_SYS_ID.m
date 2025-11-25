@@ -3,7 +3,7 @@ clear; close all; clc;
 %% ======================== 数据读取与预处理 ========================
 % 读取输入信号（激励：白噪声）和输出信号（测量：麦克风数据）
 x = readFromBIN('../data/whitenoise200-2kHz.bin')'; % 输入信号，Q1.23格式，已转浮点
-y = readFromCSV('../data/mic_data_20251117_213813.csv'); % 输出信号，浮点
+y = readFromCSV('../data/prim_data_20251122_171732.csv'); % 输出信号，浮点
 
 % 剔除 NaN，保证数据有效性
 x = x(~isnan(x));

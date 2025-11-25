@@ -1,4 +1,6 @@
 function fig = fxlms_gui(parent)
+% 右上角降噪深度显示框（上移并缩短长度）
+hNoiseDepth = uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.90 0.86 0.10 0.035], 'String','降噪深度: -- dB','FontWeight','bold','FontSize',11,'BackgroundColor',[1 1 1],'HorizontalAlignment','center','Tag','noiseDepthDisplay');
 % FXLMS_GUI  使用与 `signal_generator_gui` 类似的界面布局
 % - 顶部选择条，左侧参数面板，右侧操作面板，中央/下方绘图区，底部按钮与状态栏
 % If `parent` is provided (uitab/uipanel), the UI is built inside that
@@ -20,23 +22,23 @@ else
 end
 
 % ---------------- Top: selectors ----------------
- uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.92 0.10 0.05], 'String','Noise:','HorizontalAlignment','left');
- % Allow selecting generated signal type (Sine/Square/Band-limited) or From file
- hNoise = uicontrol('Parent',parent,'Style','popupmenu','Units','normalized','Position',[0.06 0.92 0.18 0.05], 'String',{'Sine','Square','Band-limited','From file'}, 'FontSize',10,'Callback',@onSignalTypeChanged);
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.93 0.10 0.05], 'String','Noise:','HorizontalAlignment','left');
+% Allow selecting generated signal type (Sine/Square/Band-limited) or From file
+hNoise = uicontrol('Parent',parent,'Style','popupmenu','Units','normalized','Position',[0.06 0.93 0.18 0.05], 'String',{'Sine','Square','Band-limited','From file'}, 'FontSize',10,'Callback',@onSignalTypeChanged);
 
-uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.25 0.92 0.08 0.05], 'String','Noise file:','HorizontalAlignment','left');
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.25 0.93 0.08 0.05], 'String','Noise file:','HorizontalAlignment','left');
 % Path display (read-only) and Browse button (wider, taller for readability)
-hNoiseFile = uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.30 0.95 0.20 0.02], 'String','data/whitenoise200-2kHz.bin','HorizontalAlignment','left','BackgroundColor',[1 1 1]);
-hBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.45 0.95 0.05 0.02],'String','Browse...','Callback',@onBrowse);
+hNoiseFile = uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.32 0.96 0.20 0.02], 'String','data/whitenoise200-2kHz.bin','HorizontalAlignment','left','BackgroundColor',[1 1 1]);
+hBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.52 0.96 0.05 0.02],'String','Browse...','Callback',@onBrowse);
 
 % SysID file selectors (primary and secondary). Each is an edit + Browse.
 uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.90 0.12 0.04], 'String','SysID primary:','HorizontalAlignment','left');
-hSysidPrimaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.07 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
-hSysidPrimaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.28 0.92 0.05 0.02],'String','Browse','Callback',@onSysidPrimaryBrowse,'TooltipString','Select primary LMS_SYSID*prim*.mat file');
+hSysidPrimaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.10 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
+hSysidPrimaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.30 0.92 0.05 0.02],'String','Browse','Callback',@onSysidPrimaryBrowse,'TooltipString','Select primary LMS_SYSID*prim*.mat file');
 
 uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.36 0.90 0.12 0.04], 'String','SysID secondary:','HorizontalAlignment','left');
-hSysidSecondaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.42 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
-hSysidSecondaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.63 0.92 0.05 0.02],'String','Browse','Callback',@onSysidSecondaryBrowse,'TooltipString','Select secondary LMS_SYSID*.mat file');
+hSysidSecondaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.45 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
+hSysidSecondaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.66 0.92 0.05 0.02],'String','Browse','Callback',@onSysidSecondaryBrowse,'TooltipString','Select secondary LMS_SYSID*.mat file');
  % ---------------- Left: parameter panel (stacked with Actions in same column) ----------------
 
 % Parameters panel (left) - contains algorithm params and a nested Signal subpanel
@@ -66,7 +68,8 @@ uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.
 hSave = uicontrol('Parent',paramPanel,'Style','checkbox','Units','normalized','Position',[0.52 0.14 0.40 0.08],'Value',0);
 
 % ---------------- Actions panel (stacked under Parameters in same left column) ----------------
-actionPanel = uipanel('Parent',parent,'Title','Actions','Units','normalized','Position',[0.02 0.1 0.22 0.30]);
+actionPanel = uipanel('Parent',parent,'Title','Actions','Units','normalized','Position',[0.02 0.09 0.20 0.28]);
+uistack(actionPanel, 'top');
  % larger Run button, Stop button removed, compact tips and visible status
 uicontrol('Parent',actionPanel,'Style','pushbutton','Units','normalized','Position',[0.05 0.78 0.40 0.16],'String','Run', 'FontWeight','bold','FontSize',11,'Callback',@onRun);
 % Progress bar drawn using a small axes inside the actionPanel. This
@@ -85,26 +88,35 @@ set(hProgBgRect,'HitTest','off'); set(hProgFillRect,'HitTest','off'); set(hProgT
 hStatus = uicontrol('Parent',actionPanel,'Style','text','Units','normalized','Position',[0.05 0.40 0.90 0.16],'String','Status: Ready','HorizontalAlignment','left');
 
 % ---------------- Main plotting area (2x2 grid) ----------------
-axTL = axes('Parent',parent,'Units','normalized','Position',[0.28 0.50 0.34 0.36]);
-title(axTL,'Generated reference (preview)'); xlabel(axTL,'Time (s)'); ylabel(axTL,'Amplitude');
 
-axTR = axes('Parent',parent,'Units','normalized','Position',[0.66 0.50 0.32 0.36]);
-title(axTR,'Primary / Controlled / Error'); xlabel(axTR,'Time (s)'); ylabel(axTR,'Amplitude');
+% ----------- 只初始化一次四个主绘图窗口，并在handles结构体中全程保存 -------------
+axTL = findobj(parent,'Type','axes','Tag','axTL');
+if isempty(axTL)
+    axTL = axes('Parent',parent,'Units','normalized','Position',[0.28 0.50 0.34 0.36],'Tag','axTL');
+    title(axTL,'Generated reference (preview)'); xlabel(axTL,'Time (s)'); ylabel(axTL,'Amplitude');
+end
+axTR = findobj(parent,'Type','axes','Tag','axTR');
+if isempty(axTR)
+    axTR = axes('Parent',parent,'Units','normalized','Position',[0.66 0.50 0.32 0.36],'Tag','axTR');
+    title(axTR,'Primary / Controlled / Error'); xlabel(axTR,'Time (s)'); ylabel(axTR,'Amplitude');
+end
+axBL = findobj(parent,'Type','axes','Tag','axBL');
+if isempty(axBL)
+    axBL = axes('Parent',parent,'Units','normalized','Position',[0.28 0.13 0.34 0.28],'Tag','axBL');
+    title(axBL,'Envelope Level (dB)'); xlabel(axBL,'Time (s)'); ylabel(axBL,'Level (dB)');
+end
+axBR = findobj(parent,'Type','axes','Tag','axBR');
+if isempty(axBR)
+    axBR = axes('Parent',parent,'Units','normalized','Position',[0.66 0.13 0.32 0.28],'Tag','axBR');
+    title(axBR,'Final weights (w)'); xlabel(axBR,'Tap index'); ylabel(axBR,'Amplitude');
+end
 
-axBL = axes('Parent',parent,'Units','normalized','Position',[0.28 0.13 0.34 0.28]);
-title(axBL,'Envelope Level (dB)');
-xlabel(axBL,'Time (s)'); 
-ylabel(axBL,'Level (dB)');
-
-axBR = axes('Parent',parent,'Units','normalized','Position',[0.66 0.13 0.32 0.28]);
-title(axBR,'Final weights (w)'); 
-xlabel(axBR,'Tap index'); 
-ylabel(axBR,'Amplitude');
+% 这四个axes句柄只初始化一次，后续所有绘图、清空都只用handles中的这四个句柄，不要重复创建。
 
 % Bottom action strip (import/export/quantize) to mimic style
 uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.02 0.03 0.08 0.04],'String','Generate','Callback',@onGenerate);
 uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.15 0.03 0.08 0.04],'String','Export','Callback',@onExport);
-uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.28 0.03 0.08 0.04],'String','Export to Workspace','Tag','btn_export_ws','TooltipString','Export data to base workspace','Callback',@onExportToWorkspace);
+uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.28 0.03 0.11 0.04],'String','Export to Workspace','Tag','btn_export_ws','TooltipString','Export data to base workspace','Callback',@onExportToWorkspace);
 
 % store handles in guidata if needed
 % initialize unified importedData structure (canonical source for generated/imported signals)
@@ -121,7 +133,7 @@ initialImported.meta = [];
 initialImported.sourceType = 'none'; % 'none'|'generated'|'imported_file'|'imported_workspace'
 initialImported.encodeParams = [];
 
-handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'importedData',initialImported);
+handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'hNoiseDepth',hNoiseDepth,'importedData',initialImported);
 guidata(fig,handles);
 
 % initialize signal parameter controls based on default selection
@@ -200,6 +212,19 @@ function onRun(~,~)
     % plot to axes
     axes(handles.axTR); cla(handles.axTR);
     plot(t, d, 'k', t, y_s, 'r', t, e, 'b'); legend('d','y_s','e'); xlabel('Time (s)'); ylabel('Amplitude'); grid on;
+
+    % 计算降噪深度（分贝）并显示
+    try
+        % RMS法：10*log10( sum(d.^2)/sum(e.^2) )
+        if ~isempty(d) && ~isempty(e)
+            noiseDepth = 10*log10( sum(d.^2)/sum(e.^2) );
+            set(handles.hNoiseDepth,'String',sprintf('降噪深度: %.2f dB', noiseDepth));
+        else
+            set(handles.hNoiseDepth,'String','降噪深度: -- dB');
+        end
+    catch
+        set(handles.hNoiseDepth,'String','降噪深度: -- dB');
+    end
 
     axes(handles.axBL); cla(handles.axBL);
     try
@@ -579,13 +604,17 @@ function onExport(~,~)
         full = fullfile(filePath,fileName);
         [~,~,ext] = fileparts(full);
         if strcmpi(ext,'.mat')
-            % build a comprehensive struct with imported data and last run results (if available)
+            % build a comprehensive struct with imported data, generated reference, and last run results (if available)
             S = struct();
             S.importedData = handles.importedData;
-            % include generated reference if present
+            % include generated reference r and t
             try
-                if isfield(handles,'generatedR'), S.generatedR = handles.generatedR; end
-                if isfield(handles,'generatedT'), S.generatedT = handles.generatedT; end
+                if isfield(handles,'generatedR') && ~isempty(handles.generatedR)
+                    S.generatedR = handles.generatedR;
+                end
+                if isfield(handles,'generatedT') && ~isempty(handles.generatedT)
+                    S.generatedT = handles.generatedT;
+                end
             catch
             end
             % include last run results (t,d,y_s,e,W_hist,w,params)
@@ -712,6 +741,7 @@ function onExportToWorkspace(src,~)
     handles = guidata(fig);
     % Export key run variables directly to base workspace (not a struct)
     try
+        exported = {}; % 修正：提前初始化
         % collect available items
         % prefer lastRun when present
         if isfield(handles,'lastRun') && ~isempty(handles.lastRun)
@@ -737,12 +767,23 @@ function onExportToWorkspace(src,~)
             end
         end
 
-        % d, y_s, e, W_hist/w
+        % d, y_s, e, W_hist/w, and r (reference)
         if isfield(lr,'d'), d = lr.d; end
         if isfield(lr,'y_s'), y_s = lr.y_s; end
         if isfield(lr,'e'), e = lr.e; end
         if isfield(lr,'W_hist'), W_hist = lr.W_hist; end
         if isfield(lr,'w'), w = lr.w; end
+        
+        % 统一 r 的导出逻辑：优先从 lastRun 获取，其次是 generatedR，最后是 importedData
+        if isfield(lr, 'params') && isfield(lr.params, 'r') && ~isempty(lr.params.r)
+            r = lr.params.r;
+        elseif isfield(handles, 'generatedR') && ~isempty(handles.generatedR)
+            r = handles.generatedR;
+        elseif isfield(handles, 'importedData') && isfield(handles.importedData, 'floatY') && ~isempty(handles.importedData.floatY)
+            r = handles.importedData.floatY;
+        else
+            r = [];
+        end
 
         % GUI params: fs, mu, Lw
         try fs = str2double(get(handles.hFs,'String')); catch, fs = []; end
@@ -750,13 +791,13 @@ function onExportToWorkspace(src,~)
         try Lw = str2double(get(handles.hLw,'String')); catch, Lw = []; end
 
         % Export to base workspace: assign only existing variables
-        exported = {};
         try
-            if exist('d','var'), assignin('base','d',d); exported{end+1}='d'; end
-            if exist('y_s','var'), assignin('base','y_s',y_s); exported{end+1}='y_s'; end
-            if exist('e','var'), assignin('base','e',e); exported{end+1}='e'; end
-            if exist('w','var'), assignin('base','w',w); exported{end+1}='w'; end
-            if exist('W_hist','var'), assignin('base','W_hist',W_hist); exported{end+1}='W_hist'; end
+            if exist('d','var') && ~isempty(d), assignin('base','d',d); exported{end+1}='d'; end
+            if exist('y_s','var') && ~isempty(y_s), assignin('base','y_s',y_s); exported{end+1}='y_s'; end
+            if exist('e','var') && ~isempty(e), assignin('base','e',e); exported{end+1}='e'; end
+            if exist('w','var') && ~isempty(w), assignin('base','w',w); exported{end+1}='w'; end
+            if exist('W_hist','var') && ~isempty(W_hist), assignin('base','W_hist',W_hist); exported{end+1}='W_hist'; end
+            if exist('r','var') && ~isempty(r), assignin('base','r',r); exported{end+1}='r'; end
             if ~isempty(t), assignin('base','t',t); exported{end+1}='t'; end
             if ~isempty(fs), assignin('base','fs',fs); exported{end+1}='fs'; end
             if ~isempty(mu), assignin('base','mu',mu); exported{end+1}='mu'; end
