@@ -46,7 +46,7 @@ paramPanel = uipanel('Parent',parent,'Title','Parameters','Units','normalized','
 
 % Algorithm selector at top of parameters
 uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.91 0.45 0.06],'String','Algorithm:','HorizontalAlignment','left');
-hAlg = uicontrol('Parent',paramPanel,'Style','popupmenu','Units','normalized','Position',[0.52 0.91 0.45 0.06], 'String',{'FxLMS','FxNLMS'}, 'FontSize',10);
+hAlg = uicontrol('Parent',paramPanel,'Style','popupmenu','Units','normalized','Position',[0.52 0.91 0.45 0.06], 'String',{'FxLMS','FxNLMS','IMC-FxLMS'}, 'FontSize',10);
 
 % --- Signal subpanel inside Parameters to hold signal-type specific controls ---
 % Shifted down to make room for Algorithm selector
@@ -175,6 +175,8 @@ function onRun(~,~)
             params.createAlgFcn = @(S_est, p) alg_fxlms(p.Lw, p.mu, S_est);
         case 'FxNLMS'
             params.createAlgFcn = @(S_est, p) alg_fxnlms(p.Lw, p.mu, S_est);
+        case 'IMC-FxLMS'
+            params.createAlgFcn = @(S_est, p) alg_imc_fxlms(p.Lw, p.mu, S_est);
         otherwise
             params.createAlgFcn = @(S_est, p) alg_fxlms(p.Lw, p.mu, S_est);
     end

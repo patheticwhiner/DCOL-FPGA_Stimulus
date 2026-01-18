@@ -25,7 +25,7 @@ function alg = alg_fxlms(Lw, mu, S_est)
         state.fx_buf = zeros(Lw, 1); % Buffer for filtered reference signal
     end
 
-    function [w_next, state_next] = step_algo(w, x_buf, e, state)
+    function [w_next, state_next] = step_algo(w, x_buf, e, state, ~)
         % x_buf: Reference signal buffer (current sample at index 1)
         % e    : Current error sample
         % state: Current state structure

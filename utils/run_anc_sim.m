@@ -161,8 +161,15 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
     % 6. --- Main Loop ---
     for n = 1:N
         % 6.1 Environment: Reference Update
-        xn = r(n);
-        x_buf = [xn; x_buf(1:end-1)];
+        xn_env = r(n);
+
+        % Determine controller input (Internal Model or External)
+        if isfield(alg, 'getRefFcn')
+             [xn_ctrl, alg_state] = alg.getRefFcn(xn_env, alg_state);
+        else
+             xn_ctrl = xn_env;
+        end
+        x_buf = [xn_ctrl; x_buf(1:end-1)];
 
         % 6.2 Controller: Generate Output y(n)
         % y(n) = w(n)' * x(n)
@@ -182,8 +189,8 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
         e(n) = en;
 
         % 6.5 Algorithm: Update Weights
-        % [w_new, state_new] = alg.step(w, x_buf, e, state)
-        [w, alg_state] = alg.stepFcn(w, x_buf, en, alg_state);
+        % [w_new, state_new] = alg.step(w, x_buf, e, state, yn)
+        [w, alg_state] = alg.stepFcn(w, x_buf, en, alg_state, yn);
 
         % 6.6 Logging
         W_hist(:, n) = w;

@@ -20,7 +20,7 @@ function alg = alg_fxnlms(Lw, mu, S_est)
         state.fx_buf = zeros(Lw, 1);
     end
 
-    function [w_next, state_next] = step_algo(w, x_buf, e, state)
+    function [w_next, state_next] = step_algo(w, x_buf, e, state, ~)
         % 1. Filter reference x(n) through S_est
         x_vec_S = x_buf(1:len_S);
         fx_n = S_est' * x_vec_S;
