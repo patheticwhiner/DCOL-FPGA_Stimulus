@@ -59,14 +59,14 @@ end
 
 % Place a read-only multi-line edit on the About tab with a short README excerpt
 readmeText = [ ...
-    "Signal Generator GUI for MATLAB\r\n\r\n", ...
-    "This GUI generates common test signals (Sine, Square, PRBS, White Noise),\r\n", ...
-    "allows preview and fixed-point quantization, and exports samples to\r\n", ...
-    "FPGA/embedded-friendly formats (.hex, .mem, .bin, .csv).\r\n\r\n", ...
-    "Usage: run `signal_generator_gui` in MATLAB, choose a signal type, set\r\n", ...
-    "parameters and encoding, then Generate & Preview and Export as needed.\r\n\r\n", ...
-    "Import: supports .hex/.mem/.bin/.csv and workspace variables. Companion\r\n", ...
-    "meta JSON (e.g. file.meta.json) is auto-detected when present.\r\n\r\n", ...
+    "Signal Generator GUI for MATLAB", ...
+    "This GUI generates common test signals (Sine, Square, PRBS, White Noise),", ...
+    "allows preview and fixed-point quantization, and exports samples to", ...
+    "FPGA/embedded-friendly formats (.hex, .mem, .bin, .csv).", ...
+    "Usage: run `signal_generator_gui` in MATLAB, choose a signal type, set", ...
+    "parameters and encoding, then Generate & Preview and Export as needed.", ...
+    "Import: supports .hex/.mem/.bin/.csv and workspace variables. Companion", ...
+    "meta JSON (e.g. file.meta.json) is auto-detected when present.", ...
     "See README_GUI_ForMat.md in the project for full details." ];
 % place text on left portion of About tab leaving room for an image on the right
 uicontrol('Parent',hTab1,'Style','edit','String',readmeText,'Units','normalized',...
@@ -95,7 +95,7 @@ hNumType = uicontrol('Parent',hTab2,'Style','popupmenu', ...
 hParamPanel = uipanel('Parent',hTab2,'Title','Parameters','Units','normalized',...
     'Position',[0.02 0.55 0.46 0.37],'FontSize',10);
 
-% Right encoding panel to show encoding params nicely 
+% Right encoding panel to show encoding params nicely
 hEncodePanel = uipanel('Parent',hTab2,'Title','Encoding Params','Units','normalized',...
     'Position',[0.50 0.62 0.48 0.3],'FontSize',10);
 
@@ -453,7 +453,7 @@ function yq = reconstructFromInts(y_orig, intVals, encType, Nbits, frac)
             yNq = raw / maxPos;
             yq = yNq * scale;
         end
-    end      
+    end
 end
 
 function [params, cancelled] = askImportParams(meta, ext, source)
@@ -502,7 +502,7 @@ function [params, cancelled] = askImportParams(meta, ext, source)
 
     % Build modal dialog for user input
     dpos = get(hFig,'Position');
-    figw = 420; figh = 420; fx = dpos(1)+dpos(3)/2-figw/2; fy = dpos(2)+dpos(4)/2-figh/2;
+    figw = 420; figh = 460; fx = dpos(1)+dpos(3)/2-figw/2; fy = dpos(2)+dpos(4)/2-figh/2;
     hDlg = figure('Name','Import Parameters','NumberTitle','off','MenuBar','none','ToolBar','none', ...
         'Position',[fx fy figw figh],'WindowStyle','modal','Resize','off');
     % ensure dialog controls use consistent font size
@@ -552,7 +552,9 @@ function [params, cancelled] = askImportParams(meta, ext, source)
     hLabB = uicontrol('Parent',hDlg,'Style','text','String','Bytes/sample (bin only):','HorizontalAlignment','left','Position',[10 figh-400 160 20],'Visible','off','Tag','lab_bps');
     hBps = uicontrol('Parent',hDlg,'Style','edit','String','','Position',[180 figh-404 120 24],'Visible','off','Tag','edit_bps');
     if strcmpi(ext,'.bin')
-        set(hLabB,'Visible','on'); set(hBps,'Visible','on'); set(hBps,'String','2');
+        set(hLabB,'Visible','on'); set(hBps,'Visible','on');
+        % Auto-calculate bytes/sample from Nbits
+        set(hBps,'String',num2str(ceil(params.Nbits/8)));
     end
 
     % OK / Cancel
@@ -563,6 +565,7 @@ function [params, cancelled] = askImportParams(meta, ext, source)
     set(hNum,'Callback',@updateVis);
     set(hSign,'Callback',@updateVis);
     set(hImportType,'Callback',@updateVis);
+    set(hN,'Callback',@updateBps);
     updateVis();
 
     uiwait(hDlg);
@@ -590,7 +593,7 @@ function [params, cancelled] = askImportParams(meta, ext, source)
             params.encodeType = 'Q';
         else
             if contains(params.signSel,'Unsigned')
-                params.encodeType = 'Unsigned'; 
+                params.encodeType = 'Unsigned';
             else params.encodeType = 'Signed'; end
         end
     catch
@@ -599,6 +602,15 @@ function [params, cancelled] = askImportParams(meta, ext, source)
 
     if ishandle(hDlg), close(hDlg); end
     return;
+
+function updateBps(~,~)
+    try
+        nb = str2double(get(hN,'String'));
+        if isnan(nb) || nb < 1, return; end
+        set(hBps,'String',num2str(ceil(nb/8)));
+    catch
+    end
+end
 
 function updateVis(~,~)
     try
@@ -1033,16 +1045,49 @@ function performImport(sourceType, source, payload, ext, params)
                 case '.csv'
                     M = readmatrix(source); intVals = uint64(M(:)');
                 case '.bin'
-                    fid = fopen(source,'r'); data = fread(fid,'uint8'); fclose(fid); n=numel(data);
-                    bps = params.bps; if isempty(bps) || isnan(bps) || bps<1, bps=ceil(params.Nbits/8); end
-                    if mod(n,bps)~=0, warning('File size not a multiple of bytes per sample'); end
-                    nsamples = floor(n/bps); vals = zeros(1,nsamples,'uint64');
-                    for i=1:nsamples
-                        idx2 = (i-1)*bps + (1:bps); v = uint64(0);
-                        for j=1:bps, v = bitor(bitshift(v,8), uint64(data(idx2(j)))); end
-                        vals(i)=v;
+                    % Check if file is actually ASCII text (common user mistake when exporting without 'Quantize')
+                    fid = fopen(source,'r');
+                    chunk = fread(fid, 2048, 'uint8');
+                    fclose(fid);
+                    % Heuristic: if mostly printable ASCII/whitespace, treat as text floats
+                    validChars = (chunk >= 32 & chunk <= 126) | chunk==10 | chunk==13 | chunk==9;
+                    isTextLikely = ~isempty(chunk) && (sum(validChars) / numel(chunk) > 0.95);
+
+                    loadedAsText = false;
+                    if isTextLikely
+                         try
+                             fid = fopen(source,'r');
+                             valFloat = fscanf(fid, '%f');
+                             fclose(fid);
+                             if ~isempty(valFloat)
+                                 % Quantize the text floats using current import params
+                                 y = double(valFloat(:)');
+                                 % Ensure params exist (should be set by askImportParams)
+                                 encType = 'Signed'; if isfield(params,'encodeType'), encType=params.encodeType; end
+                                 N = 24; if isfield(params,'Nbits'), N=params.Nbits; end
+                                 fr = 0; if isfield(params,'frac'), fr=params.frac; end
+
+                                 intVals = encodeSignalToIntegers(y, encType, N, fr);
+                                 loadedAsText = true;
+                                 warning('Detected ASCII text in .bin file. Imported as text floats and quantized.');
+                             end
+                         catch
+                         end
                     end
-                    intVals = uint64(vals);
+
+                    if ~loadedAsText
+                        % Standard raw binary import
+                        fid = fopen(source,'r'); data = fread(fid,'uint8'); fclose(fid); n=numel(data);
+                        bps = params.bps; if isempty(bps) || isnan(bps) || bps<1, bps=ceil(params.Nbits/8); end
+                        if mod(n,bps)~=0, warning('File size not a multiple of bytes per sample'); end
+                        nsamples = floor(n/bps); vals = zeros(1,nsamples,'uint64');
+                        for i=1:nsamples
+                            idx2 = (i-1)*bps + (1:bps); v = uint64(0);
+                            for j=1:bps, v = bitor(bitshift(v,8), uint64(data(idx2(j)))); end
+                            vals(i)=v;
+                        end
+                        intVals = uint64(vals);
+                    end
                 otherwise
                     error('Unsupported extension: %s', ext);
             end

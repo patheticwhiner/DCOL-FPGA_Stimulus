@@ -51,14 +51,14 @@ UI工具提供两种信号来源，一种是使用工具预设的信号自定义
 
   <figure align = center>
       <img src="assets\genSine.png" width = 48% />
-  	<img src="assets\genSquare.png" width = 48%/>  
+  	<img src="assets\genSquare.png" width = 48%/>
   </figure>
 - **带限白噪声信号（White Noise）**：除上述基本参数外，还提供带限频带参数，具体而言包括 Lowcut / Highcut（Hz）和 FIR order 参数。实现中 FIR 设计优先使用 MATLAB 的 `fir1`（Signal Processing Toolbox）。
 - **伪随机二进制序列（PRBS）**：实现为可配置的 LFSR（Fibonacci 风格，MSB-first），UI提供的关键参数包括：输入多项式 taps、阶（order）与 seed。PRBS 在预览时以阶梯图形式显示。
 
   <figure align = center>
       <img src="assets\genWhiteNoise.png" width = 48% />
-  	<img src="assets\genPRBS.png" width = 48%/>  
+  	<img src="assets\genPRBS.png" width = 48%/>
   </figure>
 
 ## 2 信号导入
@@ -75,7 +75,7 @@ UI工具提供两种信号来源，一种是使用工具预设的信号自定义
     <figure align = center>
         <img src = "assets\importOpts.png" width = 15%>
         <img src="assets\importOpts2.png" width = 24%/>
-    	<img src="assets\importMSine.png" width = 60%/>  
+    	<img src="assets\importMSine.png" width = 60%/>
     </figure>
 + **文件导入（Import）**：与从工作区导入仅有数据来源不同，其它设置完全相同。这部分最重要的工作是**正确解码文件数据**。
 
@@ -92,7 +92,7 @@ UI工具提供两种信号来源，一种是使用工具预设的信号自定义
 
   <figure align = center>
       <img src="assets\quantize.png" width = 48% />
-      <img src="assets\quantize2.png" width = 48%/>  
+      <img src="assets\quantize2.png" width = 48%/>
   </figure>
 - **编码选项（Encoding）**：右侧编码面板用于设置导出/恢复时的数值格式。下面分别详细说明常用格式的处理方式。
 
@@ -124,7 +124,7 @@ UI工具提供两种信号来源，一种是使用工具预设的信号自定义
 
   <figure align = center>
       <img src="assets\exportQuantize.png" width = 48% />
-      <img src="assets\exportQuantize2.png" width = 48%/>  
+      <img src="assets\exportQuantize2.png" width = 48%/>
   </figure>
 - **支持的文件格式与推荐**：
 
@@ -135,6 +135,98 @@ UI工具提供两种信号来源，一种是使用工具预设的信号自定义
 
   - 当导出为工作区变量时，若 `Quantize = ON`，会在 base workspace 中写入整数向量（例如 `exported_signal`）；若 `Quantize = OFF`，会写入浮点向量（`floatY`）。
   - 可在导出后在 MATLAB 环境中直接检查/处理数据，或保存为文件以供外部工具使用。
+
+## 5 算法仿真
+
+本工程集成了一个专用的主动噪声控制（ANC）仿真界面 `fxlms_gui.m`，用于验证 FPGA 部署前的算法性能。该界面复用了信号发生器模块的噪声生成功能，并提供了完整的 ANC 闭环仿真环境。
+
+<img src="assets\Matsimu_Interface.png"/>
+
+### 5.1 当前支持的算法
+
+- **FxLMS (Filtered-x Least Mean Squares)**：标准的前馈控制算法，通过次级通路模型对参考信号进行滤波以补偿物理路径延迟。
+- **FxNLMS (Normalized FxLMS)**：归一化版本，通过根据参考信号功率动态调整步长，提高对信号功率变化的鲁棒性。
+- **IMC-FxLMS (Internal Model Control FxLMS)**：**新增**。引入内模控制结构的反馈型算法。
+  - **原理**：利用次级通路模型 $S(z)$ 结合控制输出 $y(n)$ 与误差信号 $e(n)$，在控制器内部合成等效参考信号 $\hat{d}(n)$。
+  - **应用**：适用于无法安装参考传感器（Reference Mic）或存在强声反馈的场景，如耳机降噪。
+
+### 5.2 仿真流程
+
+1. **启动界面**：运行 `fxlms_gui`，或者打开`signal_generator_gui`后点击选项卡启动仿真环境。
+2. **环境配置**：
+   - **Noise**：选择噪声源（正弦、白噪声、外部文件等）作为初级干扰。
+   - **SysID Paths**：加载初级通路 P(z) 和次级通路 S(z) 的脉冲响应（支持 `.mat` 文件，由系统搭配的 `LMS_SYS_ID.m` 系统辨识工具生成）。
+3. **参数调整**：
+   - **Algorithm**：在下拉菜单中选择 FxLMS、FxNLMS 或 IMC-FxLMS。
+   - **Filter Length (Lw)**：自适应滤波器的抽头长度（默认 512）。
+   - **Step Size (μ)**：算法收敛步长。
+4. **运行与分析**：
+   - 点击 **Run** 开始仿真。
+   - **波形视图**：右上角窗口显示参考信号 $d(n)$、抵消信号 $y_s(n)$ 和残余误差 $e(n)$ 的时域波形。
+   - **降噪指标**：界面实时计算并显示降噪深度（Noise Reduction, dB）。
+   - **状态监控**：底部状态栏显示当前算法状态。
+
+### 5.3 算法拓展指南
+
+本工程解耦了仿真内核与算法实现，采用策略模式（Strategy Pattern）支持算法扩展。若用户希望测试在此基础上手动添加自定义算法（如 FxRLS、MCC-FxLMS 等），可遵循以下步骤，无需修改核心仿真循环。
+
+#### 1. 算法代码框架
+
+所有算法须实现为独立的 MATLAB 函数文件（建议存放在 `utils/` 目录下，如 `alg_myalgo.m`），并返回一个包含函数句柄的结构体 `alg`。
+
+**标准模板：**
+
+```matlab
+function alg = alg_template(Lw, mu, S_est)
+    % 输入：滤波器长度 Lw，步长 mu，次级通路估计 S_est
+
+    % 1. 基本属性
+    alg.name = 'MyCustomAlgo';
+    alg.Lw = Lw;
+
+    % 2. 必需接口注册
+    alg.initFcn = @init_state;   % 初始化状态
+    alg.stepFcn = @step_algo;    % 迭代更新逻辑
+
+    % 3. (可选) 参考信号获取接口
+    % 仅用于 IMC/Feedback 等需要合成参考信号的架构
+    % alg.getRefFcn = @get_reference;
+
+    % --- 内部函数实现 ---
+    function state = init_state()
+        state.buf = zeros(Lw, 1); % 初始化自定义状态变量
+    end
+
+    function [w_next, state_next] = step_algo(w, x_buf, e, state, yn)
+        % w:     当前权重向量 (Lw x 1)
+        % x_buf: 参考信号缓冲区 (包含 x(n), x(n-1)...)
+        % e:     当前采样时刻误差 e(n)
+        % state: 上一时刻算法状态
+        % yn:    当前时刻控制输出 y(n) (通常用于反馈合成)
+
+        % *** 在此处编写您的核心算法逻辑 ***
+
+        w_next = w;         % 返回更新后的权重
+        state_next = state; % 返回更新后的状态
+    end
+end
+```
+
+#### 2. 注册到 GUI
+
+完成算法文件编写后，需修改 `utils/fxlms_gui.m` 以在界面中启用：
+
+1.  **添加菜单项**：搜索 `hAlg` 控件定义（通常在 `paramPanel` 构建部分），在 `String` 列表中加入新算法名称：
+    ```matlab
+    'String', {'FxLMS', 'FxNLMS', 'IMC-FxLMS', 'MyCustomAlgo'}
+    ```
+2.  **绑定实例化逻辑**：搜索 `onRun` 函数，在 `switch selectedAlg` 块中添加对应分支：
+    ```matlab
+    case 'MyCustomAlgo'
+        params.createAlgFcn = @(S_est, p) alg_template(p.Lw, p.mu, S_est);
+    ```
+
+完成上述配置后，即可在 GUI 中选择并运行您的自定义算法。
 
 ## 已知问题与建议（TODO & Issues）
 

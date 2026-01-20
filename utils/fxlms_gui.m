@@ -44,28 +44,34 @@ hSysidSecondaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','
 % Parameters panel (left) - contains algorithm params and a nested Signal subpanel
 paramPanel = uipanel('Parent',parent,'Title','Parameters','Units','normalized','Position',[0.02 0.4 0.22 0.5]);
 
+% Algorithm selector at top of parameters
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.91 0.45 0.06],'String','Algorithm:','HorizontalAlignment','left');
+hAlg = uicontrol('Parent',paramPanel,'Style','popupmenu','Units','normalized','Position',[0.52 0.91 0.45 0.06], 'String',{'FxLMS','FxNLMS','IMC-FxLMS'}, 'FontSize',10);
+
 % --- Signal subpanel inside Parameters to hold signal-type specific controls ---
-signalPanel = uipanel('Parent',paramPanel,'Title','Signal','Units','normalized','Position',[0.03 0.66 0.94 0.30]);
+% Shifted down to make room for Algorithm selector
+signalPanel = uipanel('Parent',paramPanel,'Title','Signal','Units','normalized','Position',[0.03 0.60 0.94 0.28]);
 % Dynamic controls inside this panel are created by onSignalTypeChanged (driven by the top selector)
 
 % reduce vertical spacing (tighter layout)
 
 % Layout adjusted to avoid overlap with the Signal subpanel above.
 % Positions use distinct Y values (top->bottom): Lw, Mu, UseEst, Duration, Fs, Save
-uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.54 0.45 0.08],'String','Filter length (Lw):','HorizontalAlignment','left');
-hLw = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.54 0.40 0.08],'String','512');
+% All shifted down by approx 0.04-0.05
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.50 0.45 0.08],'String','Filter length (Lw):','HorizontalAlignment','left');
+hLw = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.50 0.40 0.08],'String','512');
 
-uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.44 0.45 0.08],'String','Step size μ:','HorizontalAlignment','left');
-hMu = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.44 0.40 0.08],'String','5e-4');
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.40 0.45 0.08],'String','Step size μ:','HorizontalAlignment','left');
+hMu = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.40 0.40 0.08],'String','5e-4');
 
-uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.34 0.45 0.08],'String','Duration (s):','HorizontalAlignment','left');
-hDuration = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.34 0.40 0.08],'String','8');
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.30 0.45 0.08],'String','Duration (s):','HorizontalAlignment','left');
+hDuration = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.30 0.40 0.08],'String','8');
 
-uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.24 0.45 0.08],'String','Sample rate (Hz):','HorizontalAlignment','left');
-hFs = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.24 0.40 0.08],'String','48000');
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.20 0.45 0.08],'String','Sample rate (Hz):','HorizontalAlignment','left');
+hFs = uicontrol('Parent',paramPanel,'Style','edit','Units','normalized','Position',[0.52 0.20 0.40 0.08],'String','48000');
 
-uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.14 0.45 0.08],'String','Save results (MAT):','HorizontalAlignment','left');
-hSave = uicontrol('Parent',paramPanel,'Style','checkbox','Units','normalized','Position',[0.52 0.14 0.40 0.08],'Value',0);
+uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.10 0.45 0.08],'String','Save results (MAT):','HorizontalAlignment','left');
+hSave = uicontrol('Parent',paramPanel,'Style','checkbox','Units','normalized','Position',[0.52 0.10 0.40 0.08],'Value',0);
 
 % ---------------- Actions panel (stacked under Parameters in same left column) ----------------
 actionPanel = uipanel('Parent',parent,'Title','Actions','Units','normalized','Position',[0.02 0.09 0.20 0.28]);
@@ -133,13 +139,20 @@ initialImported.meta = [];
 initialImported.sourceType = 'none'; % 'none'|'generated'|'imported_file'|'imported_workspace'
 initialImported.encodeParams = [];
 
-handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'hNoiseDepth',hNoiseDepth,'importedData',initialImported);
+handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'hNoiseDepth',hNoiseDepth,'importedData',initialImported, 'hAlg', hAlg);
 guidata(fig,handles);
 
 % initialize signal parameter controls based on default selection
 onSignalTypeChanged();
 
 % ---------------- Nested callbacks ----------------
+function onAlgChanged(~,~)
+    % Update UI or parameters if needed when algorithm changes
+    % For now, FxLMS and FxNLMS share the same controls (Lw, Mu)
+    % so no specific action is required here.
+    % If FxRLS is added later, we might hide 'Mu' and show 'Lambda'.
+end
+
 function onRun(~,~)
     handles = guidata(fig);
     set(handles.hStatus,'String','Status: Running'); drawnow;
@@ -151,6 +164,23 @@ function onRun(~,~)
     params.Lw = str2double(get(handles.hLw,'String'));
     params.mu = str2double(get(handles.hMu,'String'));
     params.saveResults = get(handles.hSave,'Value');
+
+    % Select algorithm strategy based on dropdown
+    algItems = get(handles.hAlg,'String');
+    algIndex = get(handles.hAlg,'Value');
+    selectedAlg = algItems{algIndex};
+
+    switch selectedAlg
+        case 'FxLMS'
+            params.createAlgFcn = @(S_est, p) alg_fxlms(p.Lw, p.mu, S_est);
+        case 'FxNLMS'
+            params.createAlgFcn = @(S_est, p) alg_fxnlms(p.Lw, p.mu, S_est);
+        case 'IMC-FxLMS'
+            params.createAlgFcn = @(S_est, p) alg_imc_fxlms(p.Lw, p.mu, S_est);
+        otherwise
+            params.createAlgFcn = @(S_est, p) alg_fxlms(p.Lw, p.mu, S_est);
+    end
+
     % optional: user-provided SysID file paths for primary/secondary LMS_SYSID .mat
     try
         params.sysidPrimaryFile = get(handles.hSysidPrimaryFile,'String');
@@ -201,7 +231,7 @@ function onRun(~,~)
         catch
         end
 
-        [t,d,y_s,e,W_hist,w,params_out] = run_fxlms(params);
+        [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params);
     catch ME
         % ensure progress resets on error
         try updateProgress(0); catch; end
@@ -209,15 +239,31 @@ function onRun(~,~)
         return;
     end
 
+    % Downsample for plotting to reduce memory usage and improve performance
+    MAX_PLOT_POINTS = 20000;
+    L_data = length(t);
+    if L_data > MAX_PLOT_POINTS
+        ds_step = floor(L_data / MAX_PLOT_POINTS);
+        ds_idx = 1:ds_step:L_data;
+        t_plot = t(ds_idx);
+        d_plot = d(ds_idx);
+        y_s_plot = y_s(ds_idx);
+        e_plot = e(ds_idx);
+    else
+        t_plot = t; d_plot = d; y_s_plot = y_s; e_plot = e;
+    end
+
     % plot to axes
     axes(handles.axTR); cla(handles.axTR);
-    plot(t, d, 'k', t, y_s, 'r', t, e, 'b'); legend('d','y_s','e'); xlabel('Time (s)'); ylabel('Amplitude'); grid on;
+    plot(t_plot, d_plot, 'k', t_plot, y_s_plot, 'r', t_plot, e_plot, 'b'); legend('d','y_s','e'); xlabel('Time (s)'); ylabel('Amplitude'); grid on;
 
     % 计算降噪深度（分贝）并显示
     try
         % RMS法：10*log10( sum(d.^2)/sum(e.^2) )
-        if ~isempty(d) && ~isempty(e)
-            noiseDepth = 10*log10( sum(d.^2)/sum(e.^2) );
+        % Use full data for calculation accuracy
+        valid_d = d(~isnan(d)); valid_e = e(~isnan(e));
+        if ~isempty(valid_d) && ~isempty(valid_e)
+            noiseDepth = 10*log10( sum(valid_d.^2)/sum(valid_e.^2) );
             set(handles.hNoiseDepth,'String',sprintf('降噪深度: %.2f dB', noiseDepth));
         else
             set(handles.hNoiseDepth,'String','降噪深度: -- dB');
@@ -228,20 +274,33 @@ function onRun(~,~)
 
     axes(handles.axBL); cla(handles.axBL);
     try
+        % Envelope plotting
+        % Avoid hilbert() on very large arrays to save memory. Use abs() approximation if downsampled.
+        if L_data > MAX_PLOT_POINTS
+             env_d = abs(d_plot);
+             env_e = abs(e_plot);
+        else
+             env_d = abs(hilbert(d));
+             env_e = abs(hilbert(e));
+        end
+
         % prefer time axis if available
-        if exist('t','var') && numel(t)==numel(d)
-            plot(t, 20*log10(abs(hilbert(d))),'k'); hold on;
-            plot(t, 20*log10(abs(hilbert(e))),'b'); hold off;
+        if exist('t_plot','var') && numel(t_plot)==numel(env_d)
+            plot(t_plot, 20*log10(env_d+eps),'k'); hold on;
+            plot(t_plot, 20*log10(env_e+eps),'b'); hold off;
             xlabel(handles.axBL,'Time (s)'); ylabel(handles.axBL,'Level (dB)');
         else
-            plot(20*log10(abs(hilbert(d))),'k'); hold on;
-            plot(20*log10(abs(hilbert(e))),'b'); hold off;
+            plot(20*log10(env_d+eps),'k'); hold on;
+            plot(20*log10(env_e+eps),'b'); hold off;
             xlabel(handles.axBL,'Sample index'); ylabel(handles.axBL,'Level (dB)');
         end
         legend('d level','e level'); grid on;
     catch
         % fallback: simple plot
-        plot(20*log10(abs(hilbert(d))),'k'); legend('d level'); grid on;
+        try
+            plot(t_plot, 20*log10(abs(d_plot)+eps),'k'); legend('d level'); grid on;
+        catch
+        end
     end
 
     axes(handles.axBR); cla(handles.axBR);
@@ -307,7 +366,16 @@ function handleImportedDataLocal(y, fs, srcName, meta, sourceType)
         try
             if isfield(handles,'axTL') && ishandle(handles.axTL)
                 axes(handles.axTL); cla(handles.axTL);
-                plot(handles.axTL, imp.t, imp.floatY, '-k'); grid on;
+                % Downsample preview if too large
+                L_imp = length(imp.t);
+                if L_imp > 20000
+                    step = floor(L_imp/20000);
+                    idx = 1:step:L_imp;
+                    plot(handles.axTL, imp.t(idx), imp.floatY(idx), '-k');
+                else
+                    plot(handles.axTL, imp.t, imp.floatY, '-k');
+                end
+                grid on;
                 title(handles.axTL, 'Generated reference (preview)'); xlabel('Time (s)'); ylabel('Amplitude');
             end
         catch
@@ -322,6 +390,20 @@ end
 function onGenerate(~,~)
     % Generate reference noise according to UI settings and preview it
     handles = guidata(fig);
+
+    % Clear previous large data to free memory (r, d, y, e)
+    if isfield(handles, 'lastRun')
+        handles = rmfield(handles, 'lastRun');
+    end
+    % Clear generated/imported signal buffers
+    if isfield(handles, 'generatedR'), handles.generatedR = []; end
+    if isfield(handles, 'generatedT'), handles.generatedT = []; end
+    if isfield(handles, 'importedData')
+        handles.importedData.floatY = [];
+        handles.importedData.t = [];
+    end
+    guidata(fig, handles);
+
     set(handles.hStatus,'String','Status: Generating reference...'); drawnow;
     % Determine selected signal type from the signal popup (mirror of top selector)
     if isfield(handles,'hSignal') && ishandle(handles.hSignal)
@@ -489,12 +571,28 @@ function onGenerate(~,~)
         axes(handles.axTL); cla(handles.axTL);
         try
             if ~isempty(imp) && isfield(imp,'floatY') && ~isempty(imp.floatY) && isfield(imp,'t') && ~isempty(imp.t)
-                plot(handles.axTL, imp.t, imp.floatY, '-k');
+                % Downsample preview
+                L_imp = length(imp.t);
+                if L_imp > 20000
+                    step = floor(L_imp/20000);
+                    idx = 1:step:L_imp;
+                    plot(handles.axTL, imp.t(idx), imp.floatY(idx), '-k');
+                else
+                    plot(handles.axTL, imp.t, imp.floatY, '-k');
+                end
             else
                 % fallback to legacy generatedR/time if available
                 if isfield(handles,'generatedR') && ~isempty(handles.generatedR)
                     t_fallback = (0:length(handles.generatedR)-1)'/fs;
-                    plot(handles.axTL, t_fallback, handles.generatedR, '-k');
+                    % Downsample fallback
+                    L_fb = length(t_fallback);
+                    if L_fb > 20000
+                        step = floor(L_fb/20000);
+                        idx = 1:step:L_fb;
+                        plot(handles.axTL, t_fallback(idx), handles.generatedR(idx), '-k');
+                    else
+                        plot(handles.axTL, t_fallback, handles.generatedR, '-k');
+                    end
                 else
                     % nothing to plot
                 end
@@ -627,6 +725,9 @@ function onExport(~,~)
             % include handles-level parameters used for run
             try
                 S.guiParams = struct('Lw', get(handles.hLw,'String'), 'mu', get(handles.hMu,'String'), 'fs', get(handles.hFs,'String'), 'duration', get(handles.hDuration,'String'));
+                % Add algorithm info
+                algItems = get(handles.hAlg,'String');
+                S.guiParams.algorithm = algItems{get(handles.hAlg,'Value')};
             catch
                 S.guiParams = [];
             end
@@ -773,7 +874,7 @@ function onExportToWorkspace(src,~)
         if isfield(lr,'e'), e = lr.e; end
         if isfield(lr,'W_hist'), W_hist = lr.W_hist; end
         if isfield(lr,'w'), w = lr.w; end
-        
+
         % 统一 r 的导出逻辑：优先从 lastRun 获取，其次是 generatedR，最后是 importedData
         if isfield(lr, 'params') && isfield(lr.params, 'r') && ~isempty(lr.params.r)
             r = lr.params.r;
