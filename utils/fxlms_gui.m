@@ -32,17 +32,27 @@ hNoiseFile = uicontrol('Parent',parent,'Style','text','Units','normalized','Posi
 hBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.52 0.96 0.05 0.02],'String','Browse...','Callback',@onBrowse);
 
 % SysID file selectors (primary and secondary). Each is an edit + Browse.
-uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.90 0.12 0.04], 'String','SysID primary:','HorizontalAlignment','left');
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.90 0.12 0.04], 'String','Pri->Err path:','HorizontalAlignment','left');
 hSysidPrimaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.10 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
 hSysidPrimaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.30 0.92 0.05 0.02],'String','Browse','Callback',@onSysidPrimaryBrowse,'TooltipString','Select primary LMS_SYSID*prim*.mat file');
 
-uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.36 0.90 0.12 0.04], 'String','SysID secondary:','HorizontalAlignment','left');
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.36 0.90 0.12 0.04], 'String','Sec->Err path:','HorizontalAlignment','left');
 hSysidSecondaryFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.45 0.92 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
 hSysidSecondaryBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.66 0.92 0.05 0.02],'String','Browse','Callback',@onSysidSecondaryBrowse,'TooltipString','Select secondary LMS_SYSID*.mat file');
+
+% New Pri-Ref and Sec-Ref paths
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.02 0.86 0.12 0.04], 'String','Pri->Ref path:','HorizontalAlignment','left');
+hSysidPriRefFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.10 0.88 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
+hSysidPriRefBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.30 0.88 0.05 0.02],'String','Browse','Callback',@onSysidPriRefBrowse,'TooltipString','Select Pri-Ref LMS_SYSID*pri-ref*.mat file');
+
+uicontrol('Parent',parent,'Style','text','Units','normalized','Position',[0.36 0.86 0.12 0.04], 'String','Sec->Ref path:','HorizontalAlignment','left');
+hSysidSecRefFile = uicontrol('Parent',parent,'Style','edit','Units','normalized','Position',[0.45 0.88 0.20 0.02], 'String','', 'HorizontalAlignment','left','BackgroundColor',[1 1 1]);
+hSysidSecRefBrowse = uicontrol('Parent',parent,'Style','pushbutton','Units','normalized','Position',[0.66 0.88 0.05 0.02],'String','Browse','Callback',@onSysidSecRefBrowse,'TooltipString','Select Sec-Ref LMS_SYSID*sec-ref*.mat file');
+
  % ---------------- Left: parameter panel (stacked with Actions in same column) ----------------
 
 % Parameters panel (left) - contains algorithm params and a nested Signal subpanel
-paramPanel = uipanel('Parent',parent,'Title','Parameters','Units','normalized','Position',[0.02 0.4 0.22 0.5]);
+paramPanel = uipanel('Parent',parent,'Title','Parameters','Units','normalized','Position',[0.02 0.38 0.22 0.48]);
 
 % Algorithm selector at top of parameters
 uicontrol('Parent',paramPanel,'Style','text','Units','normalized','Position',[0.03 0.91 0.45 0.06],'String','Algorithm:','HorizontalAlignment','left');
@@ -139,7 +149,15 @@ initialImported.meta = [];
 initialImported.sourceType = 'none'; % 'none'|'generated'|'imported_file'|'imported_workspace'
 initialImported.encodeParams = [];
 
-handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'hNoiseDepth',hNoiseDepth,'importedData',initialImported, 'hAlg', hAlg);
+handles = struct('hNoise',hNoise,'hNoiseFile',hNoiseFile,'hBrowse',hBrowse,...
+    'hSysidPrimaryFile',hSysidPrimaryFile,'hSysidPrimaryBrowse',hSysidPrimaryBrowse,...
+    'hSysidSecondaryFile',hSysidSecondaryFile,'hSysidSecondaryBrowse',hSysidSecondaryBrowse,...
+    'hSysidPriRefFile',hSysidPriRefFile,'hSysidPriRefBrowse',hSysidPriRefBrowse,...
+    'hSysidSecRefFile',hSysidSecRefFile,'hSysidSecRefBrowse',hSysidSecRefBrowse,...
+    'hDuration',hDuration,'hLw',hLw,'hMu',hMu,'hFs',hFs,'hSave',hSave,'hStatus',hStatus,...
+    'signalPanel',signalPanel,'hProgAx',hProgAx,'hProgFill',hProgFillRect,'hProgText',hProgText,...
+    'axTL',axTL,'axTR',axTR,'axBL',axBL,'axBR',axBR,'hNoiseDepth',hNoiseDepth,...
+    'importedData',initialImported, 'hAlg', hAlg);
 guidata(fig,handles);
 
 % initialize signal parameter controls based on default selection
@@ -191,6 +209,17 @@ function onRun(~,~)
         params.sysidSecondaryFile = get(handles.hSysidSecondaryFile,'String');
     catch
         params.sysidSecondaryFile = '';
+    end
+    % New Pri-Ref and Sec-Ref
+    try
+        params.sysidPriRefFile = get(handles.hSysidPriRefFile,'String');
+    catch
+        params.sysidPriRefFile = '';
+    end
+    try
+        params.sysidSecRefFile = get(handles.hSysidSecRefFile,'String');
+    catch
+        params.sysidSecRefFile = '';
     end
     % keep an optional folder fallback (for backward compatibility)
     try
@@ -930,7 +959,33 @@ function onSysidPrimaryBrowse(src,~)
     try set(handles.hSysidPrimaryFile,'String', fullFile); catch; end
     try set(handles.hStatus,'String',['Primary SysID file: ' fullFile]); drawnow; catch; end
 end
+function onSysidPriRefBrowse(src,~)
+    % Browse for a Pri-Ref LMS_SYSID*pri-ref*.mat file
+    fig = ancestor(src,'figure');
+    handles = guidata(fig);
+    startPath = fullfile(pwd,'data');
+    [fileName, filePath] = uigetfile({'*.mat','MAT files (*.mat)'}, 'Select LMS_SYSID*pri-ref*.mat', startPath);
+    if isequal(fileName,0)
+        set(handles.hStatus,'String','Pri-Ref SysID selection cancelled'); return;
+    end
+    fullFile = fullfile(filePath, fileName);
+    try set(handles.hSysidPriRefFile,'String', fullFile); catch; end
+    try set(handles.hStatus,'String',['Pri-Ref SysID file: ' fullFile]); drawnow; catch; end
+end
 
+function onSysidSecRefBrowse(src,~)
+    % Browse for a Sec-Ref LMS_SYSID*sec-ref*.mat file
+    fig = ancestor(src,'figure');
+    handles = guidata(fig);
+    startPath = fullfile(pwd,'data');
+    [fileName, filePath] = uigetfile({'*.mat','MAT files (*.mat)'}, 'Select LMS_SYSID*sec-ref*.mat', startPath);
+    if isequal(fileName,0)
+        set(handles.hStatus,'String','Sec-Ref SysID selection cancelled'); return;
+    end
+    fullFile = fullfile(filePath, fileName);
+    try set(handles.hSysidSecRefFile,'String', fullFile); catch; end
+    try set(handles.hStatus,'String',['Sec-Ref SysID file: ' fullFile]); drawnow; catch; end
+end
 function onSysidSecondaryBrowse(src,~)
     % Browse for a secondary LMS_SYSID*.mat file and update edit box
     fig = ancestor(src,'figure');

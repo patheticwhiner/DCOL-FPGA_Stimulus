@@ -74,6 +74,34 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
     if isempty(P), P = fir1(80, [60 3000]/(fs/2), 'bandpass')'; end
     P = P(:);
 
+    % Load Primary-to-Reference Path (PriRef)
+    % Maps noise source r to reference microphone signal x (without feedback)
+    PriRef = [];
+    try
+        if isfield(params,'sysidPriRefFile') && ~isempty(params.sysidPriRefFile) && exist(params.sysidPriRefFile,'file')
+            tmp = load(params.sysidPriRefFile);
+            if isfield(tmp,'s') && isfield(tmp.s,'w'), PriRef = tmp.s.w(:); end
+        end
+    catch
+        % ignore
+    end
+    if isempty(PriRef), PriRef = 1.0; end % Default to identity (x = r)
+    PriRef = PriRef(:);
+
+    % Load Secondary-to-Reference Path (SecRef)
+    % Feedback path from control output y to reference microphone x
+    SecRef = [];
+    try
+        if isfield(params,'sysidSecRefFile') && ~isempty(params.sysidSecRefFile) && exist(params.sysidSecRefFile,'file')
+            tmp = load(params.sysidSecRefFile);
+            if isfield(tmp,'s') && isfield(tmp.s,'w'), SecRef = tmp.s.w(:); end
+        end
+    catch
+        % ignore
+    end
+    if isempty(SecRef), SecRef = 0.0; end % Default to no feedback
+    SecRef = SecRef(:);
+
     % Define S_est (Controller's model of S)
     if params.useSecondaryEstimate
         S_est = S; % Perfect estimation case for now
@@ -115,6 +143,11 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
     d_full = conv(r, P);
     d = d_full(1:N);
 
+    % Pre-calculate source component of reference signal x_source = PriRef * r
+    % If PriRef is identity (default), x_source == r
+    x_source_full = conv(r, PriRef);
+    x_source = x_source_full(1:N);
+
 
     % 4. --- Initialize Algorithm Strategy ---
     if ~isfield(params, 'createAlgFcn')
@@ -150,7 +183,11 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
     max_buf_req = max([Lw, len_S, len_S_est]);
 
     x_buf = zeros(max_buf_req, 1);
-    y_buf = zeros(len_S, 1);
+    
+    % y_buf accounts for Secondary Path (S) and Secondary-to-Reference Path (SecRef)
+    len_SecRef = length(SecRef);
+    max_y_buf_req = max(len_S, len_SecRef);
+    y_buf = zeros(max_y_buf_req, 1);
 
     % Progress Tracking
     progressFcn = [];
@@ -161,7 +198,19 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
     % 6. --- Main Loop ---
     for n = 1:N
         % 6.1 Environment: Reference Update
-        xn_env = r(n);
+        % Calculate Feedback component from Secondary Source to Reference Mic
+        % x(n) = (PriRef * r)(n) + (SecRef * y)(n)
+        % Since y(n) is computed based on x(n), we assume direct term SecRef(1)*y(n) is negligible or
+        % modeled as 0 for causality in this loop structure (using previous y values).
+        fb_val = 0;
+        if len_SecRef > 0
+             % y_buf holds [y(n-1); y(n-2); ...]
+             % Align with SecRef taps: SecRef(1)*0 + SecRef(2)*y(n-1) + ...
+             fb_vec = [0; y_buf]; 
+             fb_val = SecRef' * fb_vec(1:len_SecRef);
+        end
+        
+        xn_env = x_source(n) + fb_val;
 
         % Determine controller input (Internal Model or External)
         if isfield(alg, 'getRefFcn')
@@ -179,9 +228,9 @@ function [t,d,y_s,e,W_hist,w,params_out] = run_anc_sim(params)
         y(n) = yn;
 
         % 6.3 Environment: Secondary Path Simulation
-        % y_s(n) = S * y_buf
+        % Update buffer and calculate y_s(n) = S * y_buf
         y_buf = [yn; y_buf(1:end-1)];
-        ys_n = S' * y_buf;
+        ys_n = S' * y_buf(1:len_S);
         y_s(n) = ys_n;
 
         % 6.4 Environment: Error Calculation
